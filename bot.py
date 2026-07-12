@@ -464,7 +464,8 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # MAIN - FIXED FOR RENDER
 # ============================================================
 
-async def main():
+def main():
+    """Main entry point - sync version for Render"""
     if not TELEGRAM_BOT_TOKEN:
         print("❌ ERROR: TELEGRAM_BOT_TOKEN is not set!")
         print("Please add TELEGRAM_BOT_TOKEN to your .env file")
@@ -473,6 +474,9 @@ async def main():
     try:
         print("=" * 50)
         print("🤖 Auto Bet Bot Starting...")
+        print("=" * 50)
+        print(f"🎮 Game Type: {GAME_TYPE_ID}")
+        print(f"💰 Bet Amount: {BET_AMOUNT} USDT")
         print("=" * 50)
         
         # Create application
@@ -483,20 +487,13 @@ async def main():
         app.add_handler(CallbackQueryHandler(button_handler))
         app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, message_handler))
         
-        print(f"🎮 Game Type: {GAME_TYPE_ID}")
-        print(f"💰 Bet Amount: {BET_AMOUNT} USDT")
-        print("=" * 50)
-        
-        # Start polling (this will run forever)
+        # Start polling - this blocks and runs forever
         print("🔄 Starting bot polling...")
-        await app.run_polling()
+        app.run_polling()
         
     except Exception as e:
         print(f"❌ Error: {e}")
         return
 
 if __name__ == "__main__":
-    try:
-        asyncio.run(main())
-    except KeyboardInterrupt:
-        print("\n👋 Bot stopped by user")
+    main()
