@@ -26,7 +26,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # Telegram
-TELEGRAM_BOT_TOKEN = os.getenv('TELEGRAM_BOT_TOKEN', '')
+TELEGRAM_BOT_TOKEN = os.getenv('TELEGRAM_BOT_TOKEN', '8609003431:AAGSSC1p-Hhr0IZ2iiB10qFU-jVf2B99QB4')
 
 # Account
 USERNAME = os.getenv('USERNAME', '959680090540')
