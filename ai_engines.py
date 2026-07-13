@@ -419,6 +419,24 @@ def circle_rnd_predict(history_docs):
     
     return predicted, f"{P_AI_STAR} {predicted} ({'အကြီး' if predicted == 'BIG' else 'အသေး'}) {emoji}", confidence, f"🎡 Circle Rnd: Spinner"
 
+
+# ========== 18. CUSTOM PATTERN AI (User Defined) ==========
+def custom_pattern_predict(history_docs):
+    # အမှန်တကယ် Logic ကို bot.py ဘက်ရှိ get_ai_prediction တွင် တိုက်ရိုက်တွက်ချက်ပါမည်။
+    return "WAIT", f"🛠️ Waiting", 100.0, "Custom Pattern"
+
+# AI_MODE_NAMES ထဲတွင် အောက်ပါလိုင်းကို ပေါင်းထည့်ပါ
+AI_MODE_NAMES["custom_pattern"] = "🛠️ Set Pattern"
+
+# AI_MODES ထဲတွင် အောက်ပါလိုင်းကို ပေါင်းထည့်ပါ
+AI_MODES["custom_pattern"] = {
+    "func": custom_pattern_predict, 
+    "name": AI_MODE_NAMES["custom_pattern"], 
+    "desc": "Custom Sequence Pattern"
+}
+
+
+
 # ========== AI MODES DICTIONARY ==========
 # ✅ AI Mode Names without regular emojis (Premium emoji က icon_custom_emoji_id ကနေပါမယ်)
 AI_MODE_NAMES = {
