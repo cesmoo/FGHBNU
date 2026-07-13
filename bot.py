@@ -36,52 +36,6 @@ from aiogram.types import ForceReply
 class PatternState(StatesGroup):
     waiting_for_pattern = State()
 
-# 1. Custom Pattern Button ကို နှိပ်လိုက်သည့်အခါ
-@dp.message(F.text == TEXT_CUSTOM_PATTERN)
-async def prompt_custom_pattern(message: types.Message, state: FSMContext):
-    # ForceReply ဖြင့် Keyboard ကို တန်းပွင့်စေခြင်း
-    await message.answer(
-        "သင်အသုံးပြုလိုသော Pattern ကို ရိုက်ထည့်ပါ။\n(ဥပမာ - BBSSBSBS)",
-        reply_markup=ForceReply(selective=True) 
-    )
-    await state.set_state(PatternState.waiting_for_pattern)
-
-# 2. User မှ BBSSBSBS စသည်ဖြင့် ရိုက်ထည့်လိုက်သည့်အခါ
-@dp.message(PatternState.waiting_for_pattern)
-async def process_custom_pattern(message: types.Message, state: FSMContext):
-    pattern = message.text.upper().replace(" ", "")
-    
-    # Validation စစ်ဆေးခြင်း
-    if not all(c in ['B', 'S'] for c in pattern):
-        await message.answer("စာလုံးအမှားပါဝင်နေပါသည်။ 'B' နှင့် 'S' ကိုသာ အသုံးပြုပါ။\n(ဥပမာ - BBSSBSBS)")
-        return
-        
-    user_id = message.from_user.id
-    
-    # DB တွင် သိမ်းဆည်းခြင်း
-    await db.save_custom_pattern(user_id, pattern)
-    await db.update_user_ai_mode(user_id, "custom_pattern")
-    
-    await state.clear()
-    
-    # အောင်မြင်ကြောင်း ပြန်လည်အကြောင်းကြားခြင်း
-    await message.answer(
-        f"✅ သင့်စိတ်ကြိုက် Pattern {pattern} အား အောင်မြင်စွာ မှတ်သားထားပါပြီ။"
-        # ဤနေရာတွင် မူလ Keyboard ပြန်ပေါ်စေရန် အစ်ကို့ရဲ့ main_keyboard() ကို reply_markup အနေဖြင့် ပြန်ခေါ်ပေးနိုင်ပါတယ်။
-    )
-
-
-@dp.message(F.text.regexp(r'^[BbSs]{2,}$'))
-async def auto_detect_pattern(message: types.Message):
-    pattern = message.text.upper()
-    user_id = message.from_user.id
-    
-    await db.save_custom_pattern(user_id, pattern)
-    await db.update_user_ai_mode(user_id, "custom_pattern")
-    
-    await message.answer(f"✅ Custom Pattern <b>{pattern}</b> ကို အလိုအလျောက် သတ်မှတ်ပြီးပါပြီ။")
-
-
 
 # ==========================================================
 # ⚙️ Configuration
@@ -1018,8 +972,51 @@ async def auto_bet_loop(user_tg_id, message: types.Message):
             print(f"Auto Loop Error: {e}")
             await asyncio.sleep(5)
 
-#တစ်လိုင်းခြင်း သပ်သပ်ရပ်ရပ်ရေးပေး
 
+# 1. Custom Pattern Button ကို နှိပ်လိုက်သည့်အခါ
+@dp.message(F.text == TEXT_CUSTOM_PATTERN)
+async def prompt_custom_pattern(message: types.Message, state: FSMContext):
+    # ForceReply ဖြင့် Keyboard ကို တန်းပွင့်စေခြင်း
+    await message.answer(
+        "သင်အသုံးပြုလိုသော Pattern ကို ရိုက်ထည့်ပါ။\n(ဥပမာ - BBSSBSBS)",
+        reply_markup=ForceReply(selective=True) 
+    )
+    await state.set_state(PatternState.waiting_for_pattern)
+
+# 2. User မှ BBSSBSBS စသည်ဖြင့် ရိုက်ထည့်လိုက်သည့်အခါ
+@dp.message(PatternState.waiting_for_pattern)
+async def process_custom_pattern(message: types.Message, state: FSMContext):
+    pattern = message.text.upper().replace(" ", "")
+    
+    # Validation စစ်ဆေးခြင်း
+    if not all(c in ['B', 'S'] for c in pattern):
+        await message.answer("စာလုံးအမှားပါဝင်နေပါသည်။ 'B' နှင့် 'S' ကိုသာ အသုံးပြုပါ။\n(ဥပမာ - BBSSBSBS)")
+        return
+        
+    user_id = message.from_user.id
+    
+    # DB တွင် သိမ်းဆည်းခြင်း
+    await db.save_custom_pattern(user_id, pattern)
+    await db.update_user_ai_mode(user_id, "custom_pattern")
+    
+    await state.clear()
+    
+    # အောင်မြင်ကြောင်း ပြန်လည်အကြောင်းကြားခြင်း
+    await message.answer(
+        f"✅ သင့်စိတ်ကြိုက် Pattern {pattern} အား အောင်မြင်စွာ မှတ်သားထားပါပြီ။"
+        # ဤနေရာတွင် မူလ Keyboard ပြန်ပေါ်စေရန် အစ်ကို့ရဲ့ main_keyboard() ကို reply_markup အနေဖြင့် ပြန်ခေါ်ပေးနိုင်ပါတယ်။
+    )
+
+
+@dp.message(F.text.regexp(r'^[BbSs]{2,}$'))
+async def auto_detect_pattern(message: types.Message):
+    pattern = message.text.upper()
+    user_id = message.from_user.id
+    
+    await db.save_custom_pattern(user_id, pattern)
+    await db.update_user_ai_mode(user_id, "custom_pattern")
+    
+    await message.answer(f"✅ Custom Pattern <b>{pattern}</b> ကို အလိုအလျောက် သတ်မှတ်ပြီးပါပြီ။")
 
 
 # ==========================================================
