@@ -485,3 +485,41 @@ def get_ai_mode_buttons():
         )
         buttons.append(btn)
     return buttons
+
+
+def custom_pattern_predict(history_docs, user_pattern="B"):
+    """User သတ်မှတ်ထားသော Pattern အတိုင်း အလှည့်ကျ ပြန်ထုတ်ပေးမည့် Function"""
+    if not user_pattern:
+        user_pattern = "B"
+        
+    pattern = user_pattern.upper()
+    valid_chars = [c for c in pattern if c in ['B', 'S']] # B နှင့် S သာ လက်ခံရန်
+    
+    if not valid_chars:
+        return "B"
+        
+    clean_pattern = "".join(valid_chars)
+    
+    # History အရေအတွက်ကို မူတည်ပြီး Pattern ကို အလှည့်ကျ (Cycle) သွားစေရန်
+    index = len(history_docs) % len(clean_pattern)
+    return clean_pattern[index]
+
+# AI_MODES Dictionary ထဲတွင် အောက်ပါအတိုင်း ထပ်ပေါင်းထည့်ပါ
+AI_MODES["custom_pattern"] = {
+    "func": custom_pattern_predict, 
+    "name": "Custom Pattern", 
+    "desc": "User စိတ်ကြိုက် သတ်မှတ်ထားသော Pattern"
+}
+
+# get_prediction function ကို user_pattern လက်ခံနိုင်အောင် ပြင်ဆင်ပါ
+def get_prediction(history_docs, mode, user_pattern=None):
+    mode_info = AI_MODES.get(mode)
+    
+    if mode == "custom_pattern":
+        return mode_info["func"](history_docs, user_pattern)
+        
+    if mode_info: 
+        return mode_info["func"](history_docs)
+        
+    return AI_MODES["pattern"]["func"](history_docs)
+
