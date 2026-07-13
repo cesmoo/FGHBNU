@@ -59,6 +59,7 @@ class APIClient:
             'referer': 'https://www.777bigwingame.app/',
             'authority': 'api.bigwinqaz.com',
             'min_bet': 10,
+            'random_select_type': 13,
         },
         '6LOTTERY': {
             'base_url': 'https://6lotteryapi.com/api/webapi',
@@ -68,6 +69,7 @@ class APIClient:
             'referer': 'https://www.6win566.com/',
             'authority': '6lotteryapi.com',
             'min_bet': 100,
+            'random_select_type': 14,
         }
     }
     
@@ -87,6 +89,10 @@ class APIClient:
     def get_min_bet(self) -> int:
         """Get minimum bet for current site"""
         return self.site_config.get('min_bet', 10)
+    
+    def get_random_select_type(self) -> int:
+        """Get random select type for current site"""
+        return self.site_config.get('random_select_type', 13)
     
     def _setup_headers(self):
         """Setup headers based on site configuration"""
@@ -409,8 +415,9 @@ class APIClient:
         """
         Place a bet - works for both 777BIGWIN and 6LOTTERY
         
-        For 6LOTTERY: uses 'betType' parameter
-        For 777BIGWIN: uses 'selectType' parameter
+        Both sites use 'selectType' parameter.
+        - 777BIGWIN: selectType 1-5, 13 (random)
+        - 6LOTTERY: selectType 1-5, 14 (random)
         """
         # Convert bet type to select type
         select_type = self._get_select_type(bet_type)
@@ -420,30 +427,18 @@ class APIClient:
         if amount < min_bet:
             return {
                 'code': -1, 
-                'msg': f'{self.site} မှာ အနိမ့်ဆုံး {min_bet} Kyats ကနေ စထိုးလို့ရပါတယ်။'
+                'msg': f'{self.site} မှာ အနိမ့်ဆုံး {min_bet} Kyats ကနေ စထိုးလို့ရပါတယ်။\nကျေးဇူးပြု၍ Set Bet-Size မှာ ပြန်လည်သတ်မှတ်ပါ။'
             }
         
-        # Prepare data based on site
-        if self.site == '6LOTTERY':
-            # 6LOTTERY uses 'betType'
-            data = {
-                'typeId': type_id,
-                'issuenumber': issue,
-                'amount': amount,
-                'betCount': bet_count,
-                'gameType': game_type,
-                'betType': select_type,
-            }
-        else:
-            # 777BIGWIN uses 'selectType'
-            data = {
-                'typeId': type_id,
-                'issuenumber': issue,
-                'amount': amount,
-                'betCount': bet_count,
-                'gameType': game_type,
-                'selectType': select_type,
-            }
+        # Both sites use selectType
+        data = {
+            'typeId': type_id,
+            'issuenumber': issue,
+            'amount': amount,
+            'betCount': bet_count,
+            'gameType': game_type,
+            'selectType': select_type,
+        }
         
         return self._post('GameBetting', data)
     
@@ -451,6 +446,7 @@ class APIClient:
         """Convert bet type to select type"""
         bet_type = bet_type.lower()
         
+        # Specific bet types
         if bet_type == "big":
             return 1
         elif bet_type == "small":
@@ -462,7 +458,8 @@ class APIClient:
         elif bet_type in ["violet", "purple"]:
             return 5
         else:
-            return 13  # Random
+            # Random - site specific
+            return self.get_random_select_type()
     
     # ============================================================
     # UTILITY
