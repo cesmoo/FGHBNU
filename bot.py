@@ -43,7 +43,7 @@ dp = Dispatcher(storage=storage)
 active_sessions = {}
 
 # ==========================================================
-# 🌐 API Configurations & Helper Functions
+# 🌐 API Configurations & Universal Signature Function
 # ==========================================================
 SITE_CONFIGS = {
     "777BIGWIN": {
@@ -57,17 +57,36 @@ SITE_CONFIGS = {
 }
 
 def get_signed_payload(payload: dict) -> dict:
-    """Random, Timestamp များနှင့်အတူ MD5 Signature ထုတ်လုပ်၍ Payload ပြင်ဆင်ခြင်း"""
-    payload['random'] = uuid.uuid4().hex
-    payload['timestamp'] = int(time.time())
+    """
+    Frontend ၏ Signature တွက်ချက်မှု Logic အတိအကျ (A-Z Sort, Empty string filter)
+    """
+    # 1. signature နှင့် timestamp ပါနေပါက ဖယ်ထုတ်ခြင်း
+    t = {k: v for k, v in payload.items() if k not in ['signature', 'timestamp']}
     
-    # JSON String ပြောင်းခြင်း (Space မပါစေရန်)
-    json_str = json.dumps(payload, separators=(',', ':'))
+    # 2. language နှင့် random ထည့်ခြင်း (မပါသေးပါက)
+    if 'language' not in t:
+        t['language'] = 7
+    if 'random' not in t:
+        t['random'] = uuid.uuid4().hex
+        
+    # 3. Alphabetical Sort လုပ်ပြီး None နှင့် Empty String များကို ဖယ်ထုတ်ခြင်း
+    n = {}
+    for key in sorted(t.keys()):
+        val = t[key]
+        if val is not None and val != "":
+            n[key] = val
+            
+    # 4. Space မပါသော JSON String အဖြစ်ပြောင်းခြင်း
+    json_str = json.dumps(n, separators=(',', ':'))
     
-    # MD5 Signature ထုတ်ခြင်း
+    # 5. MD5 Hash ချိုး၍ Uppercase ပြောင်းခြင်း
     signature = hashlib.md5(json_str.encode('utf-8')).hexdigest().upper()
-    payload['signature'] = signature
-    return payload
+    
+    # 6. မူရင်း Dictionary ထဲသို့ signature နှင့် timestamp ပြန်ထည့်ပေးခြင်း
+    t['signature'] = signature
+    t['timestamp'] = int(time.time())
+    
+    return t
 
 def get_headers(site: str, token: str = "") -> dict:
     """API အတွက် လိုအပ်သော Headers များ ပြင်ဆင်ခြင်း"""
