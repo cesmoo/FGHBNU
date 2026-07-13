@@ -15,8 +15,8 @@ class Config:
     OWNER_ID = int(os.getenv('OWNER_ID', '0'))
     
     # Account
-    USERNAME = os.getenv('USERNAME', '959680090540')
-    PASSWORD = os.getenv('PASSWORD', 'Bbynnds8825')
+    USERNAME = os.getenv('USERNAME', '')
+    PASSWORD = os.getenv('PASSWORD', '')
     
     # Site
     SITE = os.getenv('SITE', '777BIGWIN')
