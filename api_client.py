@@ -55,15 +55,23 @@ class SignatureGenerator:
 class APIClient:
     """API client with auto-signature and rate limiting"""
     
-    # Site configurations - ONLY API URLs, no login URLs needed!
+    # Site configurations
     SITES = {
         '777BIGWIN': {
             'base_url': 'https://api.bigwinqaz.com/api/webapi',
             'site_name': '777BIGWIN',
+            'ar_origin': 'https://www.777bigwingame.app',
+            'origin': 'https://www.777bigwingame.app',
+            'referer': 'https://www.777bigwingame.app/',
+            'authority': 'api.bigwinqaz.com',
         },
         '6LOTTERY': {
             'base_url': 'https://6lotteryapi.com/api/webapi',
             'site_name': '6LOTTERY',
+            'ar_origin': 'https://www.6win566.com',
+            'origin': 'https://www.6win566.com',
+            'referer': 'https://www.6win566.com/',
+            'authority': '6lotteryapi.com',
         }
     }
     
@@ -81,18 +89,37 @@ class APIClient:
         self._setup_headers()
     
     def _setup_headers(self):
-        self.session.headers.update({
-            'authority': 'api.bigwinqaz.com',
+        """Setup headers based on site configuration"""
+        config = self.site_config
+        
+        # Base headers
+        headers = {
             'accept': 'application/json, text/plain, */*',
             'accept-language': 'en-US,en;q=0.9',
-            'ar-origin': 'https://www.777bigwingame.app',
             'cache-control': 'no-cache',
             'content-type': 'application/json;charset=UTF-8',
-            'origin': 'https://www.777bigwingame.app',
             'pragma': 'no-cache',
-            'referer': 'https://www.777bigwingame.app/',
             'user-agent': 'Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Mobile Safari/537.36',
-        })
+        }
+        
+        # Site-specific headers
+        if self.site == '6LOTTERY':
+            headers.update({
+                'authority': config.get('authority', '6lotteryapi.com'),
+                'ar-origin': config.get('ar_origin', 'https://www.6win566.com'),
+                'ar-real-ip': '',
+                'origin': config.get('origin', 'https://www.6win566.com'),
+                'referer': config.get('referer', 'https://www.6win566.com/'),
+            })
+        else:
+            headers.update({
+                'authority': config.get('authority', 'api.bigwinqaz.com'),
+                'ar-origin': config.get('ar_origin', 'https://www.777bigwingame.app'),
+                'origin': config.get('origin', 'https://www.777bigwingame.app'),
+                'referer': config.get('referer', 'https://www.777bigwingame.app/'),
+            })
+        
+        self.session.headers.update(headers)
     
     def set_token(self, token: str):
         self.token = token
