@@ -1,3 +1,4 @@
+# a.py
 import asyncio
 import os
 import html
@@ -57,41 +58,29 @@ SITE_CONFIGS = {
 }
 
 def get_signed_payload(payload: dict) -> dict:
-    """
-    Frontend ၏ Signature တွက်ချက်မှု Logic အတိအကျ (A-Z Sort, Empty string filter)
-    """
-    # 1. signature နှင့် timestamp ပါနေပါက ဖယ်ထုတ်ခြင်း
+    """Frontend ၏ Signature တွက်ချက်မှု Logic အတိအကျ (A-Z Sort, Empty string filter)"""
     t = {k: v for k, v in payload.items() if k not in ['signature', 'timestamp']}
     
-    # 2. language နှင့် random ထည့်ခြင်း (မပါသေးပါက)
     if 'language' not in t:
         t['language'] = 7
     if 'random' not in t:
         t['random'] = uuid.uuid4().hex
         
-    # 3. Alphabetical Sort လုပ်ပြီး None နှင့် Empty String များကို ဖယ်ထုတ်ခြင်း
     n = {}
     for key in sorted(t.keys()):
         val = t[key]
         if val is not None and val != "":
             n[key] = val
             
-    # 4. Space မပါသော JSON String အဖြစ်ပြောင်းခြင်း
     json_str = json.dumps(n, separators=(',', ':'))
-    
-    # 5. MD5 Hash ချိုး၍ Uppercase ပြောင်းခြင်း
     signature = hashlib.md5(json_str.encode('utf-8')).hexdigest().upper()
     
-    # 6. မူရင်း Dictionary ထဲသို့ signature နှင့် timestamp ပြန်ထည့်ပေးခြင်း
     t['signature'] = signature
     t['timestamp'] = int(time.time())
-    
     return t
 
 def get_headers(site: str, token: str = "") -> dict:
-    """API အတွက် လိုအပ်သော Headers များ ပြင်ဆင်ခြင်း"""
     config = SITE_CONFIGS.get(site, SITE_CONFIGS["777BIGWIN"])
-    
     headers = {
         'accept': 'application/json, text/plain, */*',
         'content-type': 'application/json;charset=UTF-8',
@@ -99,14 +88,11 @@ def get_headers(site: str, token: str = "") -> dict:
         'referer': f'{config["origin"]}/',
         'user-agent': 'Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Mobile Safari/537.36',
     }
-    
     if token:
         headers['authorization'] = f'Bearer {token}'
-        
     return headers
 
 def get_select_type(bet_type: str) -> int:
-    """Bet Type အပေါ်မူတည်၍ API selectType သတ်မှတ်ခြင်း"""
     b = bet_type.lower()
     if b == "big": return 13
     elif b == "small": return 14
@@ -421,6 +407,23 @@ async def process_phone(message: types.Message, state: FSMContext):
     await message.answer("ᴘʟᴇᴀꜱᴇ ᴇɴᴛᴇʀ ʏᴏᴜʀ ᴘᴀꜱꜱᴡᴏʀᴅ", reply_markup=ReplyKeyboardRemove())
 
 # ==========================================================
+# 📡 Custom API Calls
+# ==========================================================
+async def api_get_user_info(site: str, token: str):
+    """API မှတစ်ဆင့် User ၏ အချက်အလက်များကို ဆွဲယူရန်"""
+    config = SITE_CONFIGS.get(site)
+    url = f"{config['api_url']}/GetUserInfo"
+    
+    payload = {'language': 7}
+    signed_payload = get_signed_payload(payload)
+    headers = get_headers(site, token)
+    
+    async with aiohttp.ClientSession() as session:
+        async with session.post(url, headers=headers, json=signed_payload) as response:
+            result = await response.json()
+            return result
+
+# ==========================================================
 # 🔥 API Logic: Login & Database Save
 # ==========================================================
 @dp.message(LoginForm.enter_password)
@@ -461,21 +464,21 @@ async def process_password(message: types.Message, state: FSMContext):
                 
         if api_result.get("code") == 0 or api_result.get("msg") == "success":
             user_data = api_result.get("data", {})
-            token = user_data.get("token")
-            user_id = str(user_data.get("userId", "N/A"))
-            nickname = user_data.get("nickName", "Unknown")
+            token = user_data.get("token", "") if isinstance(user_data, dict) else str(user_data)
             
-            # Balance ရယူခြင်း
-            balance_url = f"{config['api_url']}/GetBalance"
-            signed_bal_payload = get_signed_payload({'language': 7})
-            bal_headers = get_headers(site_name, token)
+            # --- GetUserInfo API အသုံးပြုခြင်း ---
+            user_info_res = await api_get_user_info(site_name, token)
             
+            user_id = "N/A"
+            nickname = "Unknown"
             balance_text = "0.00 Ks"
-            async with aiohttp.ClientSession() as session:
-                async with session.post(balance_url, headers=bal_headers, json=signed_bal_payload) as resp:
-                    bal_res = await resp.json()
-                    if bal_res.get("code") == 0:
-                        balance_text = str(bal_res.get("data", {}).get("balance", "0.00")) + " Ks"
+            
+            if user_info_res.get("code") == 0:
+                info_data = user_info_res.get("data", {})
+                user_id = str(info_data.get("userId", info_data.get("id", "N/A")))
+                nickname = info_data.get("nickName", "Unknown")
+                balance_val = info_data.get("balance", info_data.get("amount", 0.0))
+                balance_text = f"{balance_val} Ks"
             
             site_login_time = get_myanmar_time().strftime("%Y-%m-%d %H:%M:%S")
 
