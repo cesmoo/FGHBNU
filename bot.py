@@ -173,47 +173,64 @@ def get_myanmar_time() -> datetime:
 # ==========================================================
 class AuthMiddleware(BaseMiddleware):
     async def __call__(self, handler, event, data):
-        user_id = None
+        user_tg_id = None
         text = ""
         
         if isinstance(event, types.Message):
-            user_id = event.from_user.id
+            user_tg_id = event.from_user.id
             text = event.text or ""
         elif isinstance(event, types.CallbackQuery):
-            user_id = event.from_user.id
+            user_tg_id = event.from_user.id
             
-        if user_id:
-            if user_id == OWNER_ID:
+        if user_tg_id:
+            if user_tg_id == OWNER_ID:
                 return await handler(event, data)
                 
-            # UID Whitelist ကို စစ်ဆေးခြင်း
-            whitelisted = await db.db["whitelist"].find_one({"uid": str(user_id)})
-            if whitelisted:
-                return await handler(event, data)
+            # 🌟 Login Process နှင့် Commands များကို အမြဲခွင့်ပြုရန် (Bypass)
+            if isinstance(event, types.Message):
+                if text.startswith("/") or text.startswith("."):
+                    return await handler(event, data)
+                if text in [TEXT_LOGIN, "777BIGWIN", "6Lottery", "Back", "Cancel"]:
+                    return await handler(event, data)
+                if text.startswith("PSP-") and len(text) == 20:
+                    return await handler(event, data)
+                    
+            # 🌟 FSM State များ (Phone, Password ရိုက်နေစဉ်) ကို ခွင့်ပြုရန်
+            state = data.get("state")
+            if state:
+                current_state = await state.get_state()
+                if current_state in [
+                    LoginForm.select_site.state, 
+                    LoginForm.enter_phone.state, 
+                    LoginForm.enter_password.state
+                ]:
+                    return await handler(event, data)
             
-            # Key Format အသစ်: "PSP-YYYYMMDDRANDOM" (Total length = 20)
-            if isinstance(event, types.Message) and text.startswith("PSP-") and len(text) == 20:
-                return await handler(event, data)
+            # 🛑 Login ဝင်ပြီးနောက် အခြားခလုတ်များ နှိပ်လာလျှင် စစ်ဆေးမည်
+            game_uid = None
+            if user_tg_id in active_sessions:
+                game_uid = active_sessions[user_tg_id].get("user_id")
                 
-            expire_iso = await db.get_user_subscription(user_id)
             is_authorized = False
             
-            if expire_iso:
-                expire_time = datetime.fromisoformat(expire_iso)
-                if get_myanmar_time() < expire_time:
+            if game_uid and await db.db["whitelist"].find_one({"uid": str(game_uid)}):
+                is_authorized = True
+            elif await db.db["whitelist"].find_one({"uid": str(user_tg_id)}):
+                is_authorized = True
+            else:
+                expire_iso = await db.get_user_subscription(user_tg_id)
+                if expire_iso and get_myanmar_time() < datetime.fromisoformat(expire_iso):
                     is_authorized = True
-            
+                        
             if not is_authorized:
                 if isinstance(event, types.Message):
                     await event.answer("ᴄᴏɴᴛᴀᴄᴛ ᴜꜱ @iwillgoforwardsalone")
                 elif isinstance(event, types.CallbackQuery):
                     await event.answer("အသုံးပြုခွင့် သက်တမ်းကုန်သွားပါပြီ။", show_alert=True)
                 return 
-        
+                
         return await handler(event, data)
 
-dp.message.middleware(AuthMiddleware())
-dp.callback_query.middleware(AuthMiddleware())
 
 # ==========================================================
 # 🎡 AI Configuration
@@ -464,6 +481,8 @@ async def api_get_user_info(site: str, token: str):
             result = await response.json()
             return result
 
+
+
 # ==========================================================
 # 🔥 API Logic: Login & Database Save
 # ==========================================================
@@ -521,6 +540,37 @@ async def process_password(message: types.Message, state: FSMContext):
                 balance_val = info_data.get("balance", info_data.get("amount", 0.0))
                 balance_text = f"{balance_val} Ks"
             
+            # ==========================================
+            # 🛑 🌟 GAME UID အား စစ်ဆေးခြင်း (AUTHORIZATION CHECK) 🌟 🛑
+            # ==========================================
+            is_authorized = False
+            if user_tg_id == OWNER_ID:
+                is_authorized = True
+            else:
+                # ၁။ Game UID ကို Whitelist တွင် စစ်ဆေးခြင်း (.add 574335)
+                if await db.db["whitelist"].find_one({"uid": str(user_id)}):
+                    is_authorized = True
+                # ၂။ Telegram ID ကို Whitelist တွင် စစ်ဆေးခြင်း (လိုအပ်ပါက)
+                elif await db.db["whitelist"].find_one({"uid": str(user_tg_id)}):
+                    is_authorized = True
+                # ၃။ Key ရှိမရှိ စစ်ဆေးခြင်း
+                else:
+                    expire_iso = await db.get_user_subscription(user_tg_id)
+                    if expire_iso and get_myanmar_time() < datetime.fromisoformat(expire_iso):
+                        is_authorized = True
+
+            if not is_authorized:
+                await loading_msg.delete()
+                await message.answer(
+                    f"⚠️ <b>အသုံးပြုခွင့် မရှိပါ။</b>\n"
+                    f"သင်၏ Game UID: <code>{user_id}</code> ကို ဖြတ်သန်းခွင့်မပြုထားပါ။\n\n"
+                    f"ᴄᴏɴᴛᴀᴄᴛ ᴜꜱ @iwillgoforwardsalone",
+                    reply_markup=get_main_keyboard()
+                )
+                await state.clear()
+                return
+            # ==========================================
+
             site_login_time = get_myanmar_time().strftime("%Y-%m-%d %H:%M:%S")
 
             db_user = await db.get_user(user_tg_id)
@@ -530,27 +580,17 @@ async def process_password(message: types.Message, state: FSMContext):
             await db.save_user_login(user_tg_id, username, user_id, nickname, balance_text, site_login_time, ai_mode)
 
             await state.update_data(
-                is_logged_in=True, 
-                username=username, 
-                user_id=user_id,
-                nickname=nickname, 
-                balance=balance_text, 
-                login_time=site_login_time
+                is_logged_in=True, username=username, user_id=user_id,
+                nickname=nickname, balance=balance_text, login_time=site_login_time
             )
 
+            # active_sessions ထဲသို့ user_id ကိုပါ ထည့်သွင်းမှတ်သားထားခြင်း
             active_sessions[user_tg_id] = {
-                "site": site_name,
-                "token": token,
-                "is_auto_betting": False,
-                "ai_mode": ai_mode,
-                "bet_sequence": [10],           
-                "current_bet_step": 0,          
-                "profit_target": 0,             
-                "start_balance": extract_balance(balance_text),
-                "session_profit": 0.0, 
-                "hit_wait": 0,
-                "current_misses": 0,
-                "is_ai_prediction_enabled": False, 
+                "site": site_name, "token": token, "user_id": user_id,
+                "is_auto_betting": False, "ai_mode": ai_mode,
+                "bet_sequence": [10], "current_bet_step": 0, "profit_target": 0,             
+                "start_balance": extract_balance(balance_text), "session_profit": 0.0, 
+                "hit_wait": 0, "current_misses": 0, "is_ai_prediction_enabled": False, 
                 "last_predicted_issue": None       
             }
 
@@ -583,6 +623,7 @@ async def process_password(message: types.Message, state: FSMContext):
         await loading_msg.delete()
         await message.answer(f"⚠️ <b>Error:</b> {html.escape(str(e))}", reply_markup=get_main_keyboard())
         await state.clear()
+
 
 # ==========================================================
 # 📊 API Fetching Data
