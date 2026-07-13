@@ -722,7 +722,7 @@ async def prediction_broadcast_loop(user_tg_id, message: types.Message):
                 active_sessions[user_tg_id]["last_predicted_issue"] = current_issue
                 long_w, long_l = active_sessions[user_tg_id]["longest_win_streak"], active_sessions[user_tg_id]["longest_lose_streak"]
                 
-                Pred_msg = await message.answer(
+                pred_msg = await message.answer(
                     "<blockquote>"
                     f"{P_1} Ai Prediction - Live\n"
                     "━━━━━━━━━━━━━━━\n"
@@ -774,6 +774,19 @@ async def prediction_broadcast_loop(user_tg_id, message: types.Message):
         except Exception: 
             await asyncio.sleep(5)
 
+
+# ==========================================================
+# 🌟 Premium Emojis Variables
+#===========================================================
+E_SETTING = '<tg-emoji emoji-id="5877260593903177342">⚙️</tg-emoji>'
+E_CROWN   = '<tg-emoji emoji-id="5807868868886009920">👑</tg-emoji>'
+E_LOSS    = '<tg-emoji emoji-id="5807461353799030682">💸</tg-emoji>'
+E_GRID    = '<tg-emoji emoji-id="5884290437459480896">🔠</tg-emoji>'
+E_EDIT    = '<tg-emoji emoji-id="5985774024968379294">📝</tg-emoji>'
+E_DOC     = '<tg-emoji emoji-id="5956561916573782596">📄</tg-emoji>'
+E_FLOWER  = '<tg-emoji emoji-id="5967574255670399788">🌸</tg-emoji>'
+
+
 # ==========================================================
 # 🔄 Continuous Auto Bet Loop Task 
 # ==========================================================
@@ -802,7 +815,14 @@ async def auto_bet_loop(user_tg_id, message: types.Message):
                     current_misses = session.get("current_misses", 0)
                     
                     if hit_wait > 0 and current_misses < hit_wait:
-                        msg = await message.answer(f"⏳ <b>Hit Waiting: {current_misses}/{hit_wait}</b>\n• WINGO_30S : {current_issue}\n• Pred : {predicted_bet.upper()} (စောင့်ကြည့်နေပါသည်)")
+                        msg = await message.answer(
+                             "<blockquote>"
+                             f"{E_DOC} <b>Hit Waiting: {current_misses}/{hit_wait}</b>\n"
+                             f"{E_DOC} WINGO_30S : <code>{current_issue}</code>\n"
+                             f"{E_FLOWER} Pred : <b>{predicted_bet.upper()}</b> (စောင့်ကြည့်နေပါသည်)"
+                             "</blockquote>"
+                        )
+
                         
                         actual_result = "? | ?"
                         for _ in range(20):
@@ -854,9 +874,9 @@ async def auto_bet_loop(user_tg_id, message: types.Message):
 
                     await message.answer(
                         "<blockquote>"
-                        f"{P_3} WINGO_30S : <code>{current_issue}</code>\n"
-                        f"{P_3} Series : Ai Prediction\n"
-                        f"{P_4} Pred : <b>{predicted_bet.upper()}</b> | {current_amount} Ks"
+                        f"{E_DOC} WINGO_30S : <code>{current_issue}</code>\n"
+                        f"{E_DOC} Series : Ai Prediction\n"
+                        f"{E_FLOWER} Pred : <b>{predicted_bet.upper()}</b> | {current_amount} Ks"
                         "</blockquote>"
                     )
 
@@ -892,7 +912,7 @@ async def auto_bet_loop(user_tg_id, message: types.Message):
                             
                             if predicted_bet.lower() == actual_size:
                                 profit_amount = current_amount * 0.96
-                                status_title = f"⚙️ <b>WIN</b> 👑 +{profit_amount:.2f} Ks"
+                                status_title = f"{E_SETTING} <b>WIN</b> {E_LOSS} +{profit_amount:.2f} Ks"
                                 active_sessions[user_tg_id]["session_profit"] += profit_amount
                                 active_sessions[user_tg_id]["current_bet_step"] = 0 
                                 active_sessions[user_tg_id]["current_misses"] = 0 
@@ -910,10 +930,10 @@ async def auto_bet_loop(user_tg_id, message: types.Message):
                                 "<blockquote>"
                                 f"{status_title}\n"
                                 "───────────────\n"
-                                f"{P_3} WINGO_30S : <code>{current_issue}</code>\n"
-                                f"{P_3} Result : <code>{actual_result}</code>\n"
-                                f"{P_3} Balance : K{new_bal_val:,.2f}\n"
-                                f"{P_4} Total Profit : {profit_display}"
+                                f"{E_GRID} WINGO_30S : <code>{current_issue}</code>\n"
+                                f"{E_GRID} Result : <code>{actual_result}</code>\n"
+                                f"{E_EDIT} Balance : K{new_bal_val:,.2f}\n"
+                                f"{E_EDIT} Total Profit : {profit_display}"
                                 "</blockquote>"
                             )
 
