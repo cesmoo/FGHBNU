@@ -128,6 +128,9 @@ class APIClient:
                     raise
         return {'code': -1, 'msg': 'Max retries exceeded'}
     
+    # ============================================================
+    # ✅ LOGIN - အကောင့်ဝင်ခြင်း
+    # ============================================================
     def login(self, username: str, password: str) -> Dict[str, Any]:
         data = {
             'username': username,
@@ -144,6 +147,30 @@ class APIClient:
         }
         return self._post('Login', data)
     
+    # ============================================================
+    # ✅ GET USER INFO - User အချက်အလက်များရယူခြင်း
+    # ============================================================
+    def get_user_info(self) -> Dict[str, Any]:
+        """Get user information"""
+        return self._post('GetUserInfo', {})
+    
+    # ============================================================
+    # ✅ GET BALANCE - လက်ကျန်ငွေရယူခြင်း
+    # ============================================================
+    def get_balance(self) -> float:
+        try:
+            result = self._post('GetBalance', {})
+            if result.get('code') == 0:
+                data = result.get('data', {})
+                if isinstance(data, dict):
+                    return float(data.get('amount', 0))
+            return 0.0
+        except:
+            return 0.0
+    
+    # ============================================================
+    # ✅ GET GAME ISSUE - ဂိမ်းအပတ်စဉ်နံပါတ်ရယူခြင်း
+    # ============================================================
     def get_game_issue(self, type_id: int) -> Optional[str]:
         try:
             result = self._post('GetGameIssue', {'typeId': type_id})
@@ -163,6 +190,9 @@ class APIClient:
             logger.error(f"GetGameIssue error: {e}")
             return None
     
+    # ============================================================
+    # ✅ GET HISTORY - ဂိမ်းသမိုင်းရယူခြင်း (AI အတွက်)
+    # ============================================================
     def get_noaverage_emergd_list(self, type_id: int = 30, page_size: int = 10, page_no: int = 1) -> List[Dict]:
         try:
             result = self._post('GetNoaverageEmerdList', {
@@ -181,6 +211,9 @@ class APIClient:
             logger.error(f"GetNoaverageEmerdList error: {e}")
             return []
     
+    # ============================================================
+    # ✅ PLACE BET - လောင်းကြေးထိုးခြင်း
+    # ============================================================
     def place_bet(self, type_id: int, issue: str, select_type: int, 
                   amount: int, bet_count: int = 1, game_type: int = 2) -> Dict:
         return self._post('GameBetting', {
@@ -191,17 +224,6 @@ class APIClient:
             'gameType': game_type,
             'selectType': select_type,
         })
-    
-    def get_balance(self) -> float:
-        try:
-            result = self._post('GetBalance', {})
-            if result.get('code') == 0:
-                data = result.get('data', {})
-                if isinstance(data, dict):
-                    return float(data.get('amount', 0))
-            return 0.0
-        except:
-            return 0.0
     
     async def close(self):
         self.session.close()
