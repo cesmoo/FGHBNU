@@ -753,7 +753,6 @@ async def auto_bet_loop(user_tg_id, message: types.Message):
     token = session["token"]
     config = SITE_CONFIGS.get(site)
     balance_url = f"{config['api_url']}/GetBalance"
-    signed_bal_payload = get_signed_payload({'language': 7})
     bal_headers = get_headers(site, token)
 
     while active_sessions.get(user_tg_id, {}).get("is_auto_betting", False):
@@ -805,13 +804,17 @@ async def auto_bet_loop(user_tg_id, message: types.Message):
                     # Checking real balance before bet
                     current_bal_val = 0.0
                     async with aiohttp.ClientSession() as http_session:
-                        async with http_session.post(balance_url, headers=bal_headers, json=signed_bal_payload) as resp:
+                        async with http_session.post(balance_url, headers=bal_headers, json=get_signed_payload({'language': 7})) as resp:
                             bal_res = await resp.json()
                             if bal_res.get("code") == 0:
-                                current_bal_val = float(bal_res.get("data", {}).get("balance", 0))
+                                data_field = bal_res.get("data")
+                                if isinstance(data_field, dict):
+                                    current_bal_val = float(data_field.get("balance", data_field.get("amount", 0.0)))
+                                else:
+                                    current_bal_val = float(data_field)
                     
                     if current_bal_val < current_amount:
-                        await message.answer(f"⚠️ <b>လက်ကျန်ငွေ မလုံလောက်တော့ပါ။</b>\nလိုအပ်သောငွေ: {current_amount} Ks\nလက်ကျန်: {current_bal_val} Ks\n🛑 Auto Bet ကို ရပ်နားလိုက်ပါသည်။")
+                        await message.answer(f"⚠️ <b>လက်ကျန်ငွေ မလုံလောက်တော့ပါ။</b>\nလိုအပ်သောငွေ: {current_amount} Ks\nလက်ကျန်: {current_bal_val:,.2f} Ks\n🛑 Auto Bet ကို ရပ်နားလိုက်ပါသည်။")
                         active_sessions[user_tg_id]["is_auto_betting"] = False
                         break
 
@@ -830,12 +833,18 @@ async def auto_bet_loop(user_tg_id, message: types.Message):
                             actual_result = await get_latest_game_result(current_issue, user_tg_id)
                             if actual_result != "? | ?": break 
                         
+                        # Fetch new balance after bet result
                         new_bal_val = 0.0
                         async with aiohttp.ClientSession() as http_session:
-                            async with http_session.post(balance_url, headers=bal_headers, json=signed_bal_payload) as resp:
+                            async with http_session.post(balance_url, headers=bal_headers, json=get_signed_payload({'language': 7})) as resp:
                                 bal_res = await resp.json()
                                 if bal_res.get("code") == 0:
-                                    new_bal_val = float(bal_res.get("data", {}).get("balance", 0))
+                                    data_field = bal_res.get("data")
+                                    if isinstance(data_field, dict):
+                                        new_bal_val = float(data_field.get("balance", data_field.get("amount", 0.0)))
+                                    else:
+                                        new_bal_val = float(data_field)
+
 
                         try:
                             actual_size = actual_result.split(" | ")[1].strip().lower() 
@@ -857,7 +866,7 @@ async def auto_bet_loop(user_tg_id, message: types.Message):
                             profit_display = f"+{current_profit:,.2f} Ks" if current_profit > 0 else f"{current_profit:,.2f} Ks"
                             
                             await message.answer(f"<blockquote>{status_title}\n──────────────────\n🔠 WINGO_30S : {current_issue}\n🔠 Result : {actual_result}\n📝 Balance : K{new_bal_val:,.2f}\n📝 Total Profit : {profit_display}</blockquote>")
-                            await db.update_user_balance(user_tg_id, f"{new_bal_val} Ks")
+                            await db.update_user_balance(user_tg_id, f"{new_bal_val:.2f} Ks")
                             
                             profit_target = active_sessions[user_tg_id].get("profit_target", 0)
                             if profit_target > 0 and current_profit >= profit_target:
@@ -876,6 +885,7 @@ async def auto_bet_loop(user_tg_id, message: types.Message):
         except Exception as e:
             print(f"Auto Loop Error: {e}")
             await asyncio.sleep(5)
+
 
 # ==========================================================
 # 🎯 Feature Handlers (Hit, Profit, AI Mode, BetSize)
@@ -1011,6 +1021,7 @@ async def check_balance(message: types.Message, state: FSMContext):
     try:
         config = SITE_CONFIGS.get(session["site"])
         balance_url = f"{config['api_url']}/GetBalance"
+        
         signed_bal_payload = get_signed_payload({'language': 7})
         bal_headers = get_headers(session["site"], session["token"])
         
@@ -1019,16 +1030,25 @@ async def check_balance(message: types.Message, state: FSMContext):
             async with http_session.post(balance_url, headers=bal_headers, json=signed_bal_payload) as resp:
                 bal_res = await resp.json()
                 if bal_res.get("code") == 0:
-                    balance_text = str(bal_res.get("data", {}).get("balance", "0.00")) + " Ks"
+                    data_field = bal_res.get("data")
+                    # data သည် dictionary ဖြစ်နေလျှင်
+                    if isinstance(data_field, dict):
+                        balance_val = data_field.get("balance", data_field.get("amount", 0.0))
+                    else:
+                        # data သည် ဂဏန်းတိုက်ရိုက် ဖြစ်နေလျှင်
+                        balance_val = data_field
+                        
+                    balance_text = f"{float(balance_val):.2f} Ks"
 
         await state.update_data(balance=balance_text)
         await db.update_user_balance(user_tg_id, balance_text)
 
         await loading_msg.delete()
         await message.answer(f"💰 <b>သင့်ရဲ့ လက်ရှိ လက်ကျန်ငွေ:</b> {balance_text}", reply_markup=get_logged_in_keyboard())
-    except Exception:
+    except Exception as e:
         await loading_msg.delete()
-        await message.answer("⚠️ <b>Error:</b> Balance စစ်ဆေးရာတွင် အခက်အခဲရှိနေပါသည်။", reply_markup=get_logged_in_keyboard())
+        await message.answer(f"⚠️ <b>Error:</b> Balance စစ်ဆေးရာတွင် အခက်အခဲရှိနေပါသည်။", reply_markup=get_logged_in_keyboard())
+
 
 @dp.message(LoginForm.main_menu, F.text == TEXT_INFO)
 async def show_info(message: types.Message, state: FSMContext):
