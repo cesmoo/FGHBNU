@@ -25,22 +25,17 @@ class SignatureGenerator:
     
     def generate_signature(self, data: Dict[str, Any]) -> Dict[str, Any]:
         """Generate signature with MD5 hash"""
-        # Remove existing signature and timestamp
         clean_data = {k: v for k, v in data.items() 
                      if k not in ['signature', 'timestamp']}
-        
-        # Add language and random
         clean_data['language'] = self.language
         clean_data['random'] = self.generate_random()
         
-        # Sort keys alphabetically
         sorted_data = {}
         for key in sorted(clean_data.keys()):
             value = clean_data[key]
             if value is not None and value != '':
                 sorted_data[key] = value
         
-        # JSON stringify and MD5 hash
         json_string = json.dumps(sorted_data, separators=(',', ':'))
         signature = hashlib.md5(json_string.encode()).hexdigest().upper()
         timestamp = int(time.time())
@@ -55,7 +50,6 @@ class SignatureGenerator:
 class APIClient:
     """API client with auto-signature and rate limiting"""
     
-    # Site configurations
     SITES = {
         '777BIGWIN': {
             'base_url': 'https://api.bigwinqaz.com/api/webapi',
@@ -64,6 +58,7 @@ class APIClient:
             'origin': 'https://www.777bigwingame.app',
             'referer': 'https://www.777bigwingame.app/',
             'authority': 'api.bigwinqaz.com',
+            'min_bet': 10,
         },
         '6LOTTERY': {
             'base_url': 'https://6lotteryapi.com/api/webapi',
@@ -72,6 +67,7 @@ class APIClient:
             'origin': 'https://www.6win566.com',
             'referer': 'https://www.6win566.com/',
             'authority': '6lotteryapi.com',
+            'min_bet': 100,
         }
     }
     
@@ -88,11 +84,14 @@ class APIClient:
         self._min_request_interval = 2.0
         self._setup_headers()
     
+    def get_min_bet(self) -> int:
+        """Get minimum bet for current site"""
+        return self.site_config.get('min_bet', 10)
+    
     def _setup_headers(self):
         """Setup headers based on site configuration"""
         config = self.site_config
         
-        # Base headers
         headers = {
             'accept': 'application/json, text/plain, */*',
             'accept-language': 'en-US,en;q=0.9',
@@ -102,7 +101,6 @@ class APIClient:
             'user-agent': 'Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Mobile Safari/537.36',
         }
         
-        # Site-specific headers
         if self.site == '6LOTTERY':
             headers.update({
                 'authority': config.get('authority', '6lotteryapi.com'),
@@ -134,7 +132,6 @@ class APIClient:
         self._last_request_time = time.time()
     
     def _post(self, endpoint: str, data: Dict[str, Any], retry: int = 3) -> Dict[str, Any]:
-        """Sync POST request with signature"""
         self._rate_limit()
         
         for attempt in range(retry):
@@ -147,7 +144,6 @@ class APIClient:
                 )
                 result = response.json()
                 
-                # Rate limit (code 13 = access too often)
                 if result.get('code') == 13:
                     logger.warning(f"Rate limited, waiting 5 seconds...")
                     time.sleep(5)
@@ -166,7 +162,6 @@ class APIClient:
         return {'code': -1, 'msg': 'Max retries exceeded'}
     
     async def _apost(self, endpoint: str, data: Dict[str, Any], retry: int = 3) -> Dict[str, Any]:
-        """Async POST request with signature"""
         self._rate_limit()
         
         if self._aio_session is None:
@@ -204,11 +199,10 @@ class APIClient:
             await self._aio_session.close()
     
     # ============================================================
-    # LOGIN - API Only! No browser needed!
+    # LOGIN
     # ============================================================
     
     def login(self, username: str, password: str, device_id: str = None) -> Dict[str, Any]:
-        """Login to the platform via API - NO BROWSER NEEDED!"""
         if device_id is None:
             device_id = '51ed4ee0f338a1bb24063ffdfcd31ce6'
         
@@ -228,7 +222,6 @@ class APIClient:
         return self._post('Login', data)
     
     async def alogin(self, username: str, password: str, device_id: str = None) -> Dict[str, Any]:
-        """Async login via API"""
         if device_id is None:
             device_id = '51ed4ee0f338a1bb24063ffdfcd31ce6'
         
@@ -252,14 +245,12 @@ class APIClient:
     # ============================================================
     
     def get_user_info(self) -> Dict[str, Any]:
-        """Get user information"""
         return self._post('GetUserInfo', {})
     
     async def aget_user_info(self) -> Dict[str, Any]:
         return await self._apost('GetUserInfo', {})
     
     def get_balance(self) -> float:
-        """Get user balance"""
         try:
             result = self._post('GetBalance', {})
             if result.get('code') == 0:
@@ -286,7 +277,6 @@ class APIClient:
     # ============================================================
     
     def get_game_issue(self, type_id: int = 30) -> Optional[str]:
-        """Get current issue number"""
         try:
             result = self._post('GetGameIssue', {'typeId': type_id})
             
@@ -335,7 +325,6 @@ class APIClient:
             return None
     
     def get_noaverage_emergd_list(self, type_id: int = 30, page_size: int = 10, page_no: int = 1) -> List[Dict]:
-        """Get betting history/trends"""
         try:
             result = self._post('GetNoaverageEmerdList', {
                 'typeId': type_id,
@@ -376,7 +365,6 @@ class APIClient:
             return []
     
     def get_win_result(self, issue_numbers: List[str]) -> List[Dict]:
-        """Get lottery results for specific issues"""
         try:
             result = self._post('GetWinTheLotteryResult', {
                 'issueNumber': issue_numbers
@@ -413,38 +401,74 @@ class APIClient:
             return []
     
     # ============================================================
-    # BETTING
+    # BETTING - FIXED FOR BOTH SITES!
     # ============================================================
     
-    def place_bet(self, type_id: int, issue: str, select_type: int, 
+    def place_bet(self, type_id: int, issue: str, bet_type: str, 
                   amount: int, bet_count: int = 1, game_type: int = 2) -> Dict:
-        """Place a bet"""
-        return self._post('GameBetting', {
-            'typeId': type_id,
-            'issuenumber': issue,
-            'amount': amount,
-            'betCount': bet_count,
-            'gameType': game_type,
-            'selectType': select_type,
-        })
+        """
+        Place a bet - works for both 777BIGWIN and 6LOTTERY
+        
+        For 6LOTTERY: uses 'betType' parameter
+        For 777BIGWIN: uses 'selectType' parameter
+        """
+        # Convert bet type to select type
+        select_type = self._get_select_type(bet_type)
+        
+        # Check minimum bet
+        min_bet = self.get_min_bet()
+        if amount < min_bet:
+            return {
+                'code': -1, 
+                'msg': f'{self.site} မှာ အနိမ့်ဆုံး {min_bet} Kyats ကနေ စထိုးလို့ရပါတယ်။'
+            }
+        
+        # Prepare data based on site
+        if self.site == '6LOTTERY':
+            # 6LOTTERY uses 'betType'
+            data = {
+                'typeId': type_id,
+                'issuenumber': issue,
+                'amount': amount,
+                'betCount': bet_count,
+                'gameType': game_type,
+                'betType': select_type,
+            }
+        else:
+            # 777BIGWIN uses 'selectType'
+            data = {
+                'typeId': type_id,
+                'issuenumber': issue,
+                'amount': amount,
+                'betCount': bet_count,
+                'gameType': game_type,
+                'selectType': select_type,
+            }
+        
+        return self._post('GameBetting', data)
     
-    async def aplace_bet(self, type_id: int, issue: str, select_type: int, 
-                         amount: int, bet_count: int = 1, game_type: int = 2) -> Dict:
-        return await self._apost('GameBetting', {
-            'typeId': type_id,
-            'issuenumber': issue,
-            'amount': amount,
-            'betCount': bet_count,
-            'gameType': game_type,
-            'selectType': select_type,
-        })
+    def _get_select_type(self, bet_type: str) -> int:
+        """Convert bet type to select type"""
+        bet_type = bet_type.lower()
+        
+        if bet_type == "big":
+            return 1
+        elif bet_type == "small":
+            return 2
+        elif bet_type == "red":
+            return 3
+        elif bet_type == "green":
+            return 4
+        elif bet_type in ["violet", "purple"]:
+            return 5
+        else:
+            return 13  # Random
     
     # ============================================================
     # UTILITY
     # ============================================================
     
     def extract_result(self, result_data: Dict) -> Tuple[int, str]:
-        """Extract number and size from result"""
         try:
             number = int(result_data.get('number', 0))
             if number >= 5:
@@ -454,19 +478,6 @@ class APIClient:
             return number, size
         except:
             return 0, "UNKNOWN"
-    
-    def get_bet_choice(self, prediction: str) -> str:
-        """Convert prediction to bet choice"""
-        mapping = {
-            'big': 'big',
-            'small': 'small',
-            'red': 'red',
-            'green': 'green',
-            'violet': 'violet',
-            'purple': 'violet'
-        }
-        return mapping.get(prediction.lower(), 'big')
 
 
-# For async methods
 import asyncio
