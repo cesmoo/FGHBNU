@@ -284,7 +284,7 @@ def get_ai_mode_keyboard():
     if row:
         keyboard.append(row)
     
-    back_btn = KeyboardButton(text="🔙 ပင်မမီနူးသို့", icon_custom_emoji_id="5848119413041431362", style="primary")
+    back_btn = KeyboardButton(text="BACK", icon_custom_emoji_id="5848119413041431362", style="primary")
     keyboard.append([back_btn])
     return ReplyKeyboardMarkup(keyboard=keyboard, resize_keyboard=True)
 
@@ -625,7 +625,7 @@ async def get_ai_prediction(user_tg_id):
 # ==========================================================
 # 🚀 API Core Functions for Auto Bet
 # ==========================================================
-async def place_auto_bet(user_tg_id: int, current_issue: str, bet_type: str, amount: int = 10, silent: bool = False):
+async def place_auto_bet(user_tg_id: int, current_issue: str, bet_type: str, total_amount: int = 10, silent: bool = False):
     try:
         session_data = active_sessions.get(user_tg_id)
         if not session_data or "token" not in session_data:
@@ -638,11 +638,26 @@ async def place_auto_bet(user_tg_id: int, current_issue: str, bet_type: str, amo
         
         select_type = get_select_type(bet_type)
         
+        # --- လောင်းကြေး (Multiplier) တွက်ချက်ခြင်း ---
+        if total_amount >= 10000:
+            base_amount = 10000
+            bet_count = total_amount // 10000
+        elif total_amount >= 1000:
+            base_amount = 1000
+            bet_count = total_amount // 1000
+        elif total_amount >= 100:
+            base_amount = 100
+            bet_count = total_amount // 100
+        else:
+            base_amount = 10
+            bet_count = total_amount // 10
+        
+        # API သို့ပို့မည့် Payload အား အမှန်တကယ် လက်ခံသော ပုံစံဖြင့် ဖွဲ့စည်းခြင်း
         payload = {
             'typeId': 30,
             'issuenumber': current_issue,
-            'amount': amount,
-            'betCount': 1,
+            'amount': base_amount,   # အခြေခံလောင်းကြေး (10, 100, 1000, 10000)
+            'betCount': bet_count,   # လောင်းမည့် အဆ (Multiplier)
             'gameType': 2,
             'selectType': select_type,
             'language': 7
@@ -655,6 +670,7 @@ async def place_auto_bet(user_tg_id: int, current_issue: str, bet_type: str, amo
             async with session.post(url, headers=headers, json=signed_payload) as response:
                 result = await response.json()
                 
+        # လောင်းကြေးအောင်မြင်မှု ရှိ/မရှိ စစ်ဆေးခြင်း
         if result.get("code") == 0 or result.get("msg") == "success":
             return True
         else:
@@ -667,6 +683,7 @@ async def place_auto_bet(user_tg_id: int, current_issue: str, bet_type: str, amo
             print(f"Betting Request Error: {e}")
         return False
 
+
 # ==========================================================
 # 🔮 AI Prediction Broadcast Loop
 # ==========================================================
@@ -675,7 +692,7 @@ async def btn_ai_prediction_toggle(message: types.Message):
     user_tg_id = message.from_user.id
     if user_tg_id not in active_sessions: return await message.answer("⚠️ အရင်ဆုံး Login ဝင်ပေးပါ။")
     is_enabled = active_sessions[user_tg_id].get("is_ai_prediction_enabled", False)
-    await message.answer("🔮 <b>AI Prediction Broadcast</b>", reply_markup=get_ai_prediction_toggle_keyboard(is_enabled))
+    await message.answer("AI Prediction Broadcast", reply_markup=get_ai_prediction_toggle_keyboard(is_enabled))
 
 @dp.callback_query(F.data == "toggle_aipred")
 async def process_toggle_aipred(callback: types.CallbackQuery):
@@ -705,8 +722,15 @@ async def prediction_broadcast_loop(user_tg_id, message: types.Message):
                 active_sessions[user_tg_id]["last_predicted_issue"] = current_issue
                 long_w, long_l = active_sessions[user_tg_id]["longest_win_streak"], active_sessions[user_tg_id]["longest_lose_streak"]
                 
-                pred_msg = await message.answer(
-                    f"<blockquote>{P_1} Ai Prediction - Live\n━━━━━━━━━━━━━━━\n{P_2} WINGO_30S : <code>{current_issue}</code>\n{P_3} Prediction : <b>{predicted_bet.upper()}</b>〔 {long_w} 〕|〔 {long_l} 〕\n{P_4} Status : Waiting for result...</blockquote>"
+                Pred_msg = await message.answer(
+                    "<blockquote>"
+                    f"{P_1} Ai Prediction - Live\n"
+                    "━━━━━━━━━━━━━━━\n"
+                    f"{P_2} WINGO_30S : <code>{current_issue}</code>\n"
+                    f"{P_3} Prediction : <b>{predicted_bet.upper()}</b> "
+                    f"〔 {long_w} 〕|〔 {long_l} 〕\n"
+                    f"{P_4} Status : Waiting for result..."
+                    "</blockquote>"
                 )
                 
                 actual_result = "? | ?"
@@ -732,7 +756,17 @@ async def prediction_broadcast_loop(user_tg_id, message: types.Message):
                     
                 long_w, long_l = active_sessions[user_tg_id]["longest_win_streak"], active_sessions[user_tg_id]["longest_lose_streak"]
                 try:
-                    await pred_msg.edit_text(f"<blockquote>{P_1} Ai Prediction - Live\n━━━━━━━━━━━━━━━\n{P_2} WINGO_30S : <code>{current_issue}</code>\n{P_3} Prediction : <b>{predicted_bet.upper()}</b>〔 {long_w} 〕|〔 {long_l} 〕\n{P_4} Status : {status_text}</blockquote>")
+                    await pred_msg.edit_text(
+                        "<blockquote>"
+                        f"{P_1} Ai Prediction - Live\n"
+                        "━━━━━━━━━━━━━━━\n"
+                        f"{P_2} WINGO_30S : <code>{current_issue}</code>\n"
+                        f"{P_3} Prediction : <b>{predicted_bet.upper()}</b> "
+                        f"〔 {long_w} 〕|〔 {long_l} 〕\n"
+                        f"{P_4} Status : {status_text}"
+                        "</blockquote>"
+                    )
+
                 except: pass
                 await asyncio.sleep(2)
             else:
@@ -818,7 +852,14 @@ async def auto_bet_loop(user_tg_id, message: types.Message):
                         active_sessions[user_tg_id]["is_auto_betting"] = False
                         break
 
-                    await message.answer(f"<blockquote>📄 WINGO_30S : {current_issue}\n📄 Series : Ai Prediction\n🌸 Pred : {predicted_bet.upper()} | {current_amount} Ks</blockquote>")
+                    await message.answer(
+                        "<blockquote>"
+                        f"{P_3} WINGO_30S : <code>{current_issue}</code>\n"
+                        f"{P_3} Series : Ai Prediction\n"
+                        f"{P_4} Pred : <b>{predicted_bet.upper()}</b> | {current_amount} Ks"
+                        "</blockquote>"
+                    )
+
 
                     last_betted_issue = current_issue
                     await asyncio.sleep(7) # Timing alignment
@@ -865,7 +906,17 @@ async def auto_bet_loop(user_tg_id, message: types.Message):
                             current_profit = active_sessions[user_tg_id].get("session_profit", 0.0)
                             profit_display = f"+{current_profit:,.2f} Ks" if current_profit > 0 else f"{current_profit:,.2f} Ks"
                             
-                            await message.answer(f"<blockquote>{status_title}\n──────────────────\n🔠 WINGO_30S : {current_issue}\n🔠 Result : {actual_result}\n📝 Balance : K{new_bal_val:,.2f}\n📝 Total Profit : {profit_display}</blockquote>")
+                            await message.answer(
+                                "<blockquote>"
+                                f"{status_title}\n"
+                                "───────────────\n"
+                                f"{P_3} WINGO_30S : <code>{current_issue}</code>\n"
+                                f"{P_3} Result : <code>{actual_result}</code>\n"
+                                f"{P_3} Balance : K{new_bal_val:,.2f}\n"
+                                f"{P_4} Total Profit : {profit_display}"
+                                "</blockquote>"
+                            )
+
                             await db.update_user_balance(user_tg_id, f"{new_bal_val:.2f} Ks")
                             
                             profit_target = active_sessions[user_tg_id].get("profit_target", 0)
@@ -885,6 +936,9 @@ async def auto_bet_loop(user_tg_id, message: types.Message):
         except Exception as e:
             print(f"Auto Loop Error: {e}")
             await asyncio.sleep(5)
+
+#တစ်လိုင်းခြင်း သပ်သပ်ရပ်ရပ်ရေးပေး
+
 
 
 # ==========================================================
