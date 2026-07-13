@@ -96,22 +96,78 @@ PREMIUM_EMOJIS = {
 }
 
 # ==========================================================
-# KEYBOARD BUTTONS WITH PREMIUM EMOJIS
+# KEYBOARD BUTTONS WITH PREMIUM EMOJIS & COLOR STYLES
 # ==========================================================
-E_INFO = KeyboardButton(text=TEXT_INFO, icon_custom_emoji_id=PREMIUM_EMOJIS["info"], style="primary")
-E_BALANCE = KeyboardButton(text=TEXT_BALANCE, icon_custom_emoji_id=PREMIUM_EMOJIS["balance"], style="primary")
-E_STATUS = KeyboardButton(text=TEXT_STATUS, icon_custom_emoji_id=PREMIUM_EMOJIS["status"], style="primary")
-E_START = KeyboardButton(text=TEXT_START, icon_custom_emoji_id=PREMIUM_EMOJIS["start"], style="success")
-E_STOP = KeyboardButton(text=TEXT_STOP, icon_custom_emoji_id=PREMIUM_EMOJIS["stop"], style="danger")
-E_GAMES = KeyboardButton(text=TEXT_GAMES, icon_custom_emoji_id=PREMIUM_EMOJIS["games"], style="primary")
-E_AI = KeyboardButton(text=TEXT_AI, icon_custom_emoji_id=PREMIUM_EMOJIS["ai"], style="primary")
-E_BETSIZE = KeyboardButton(text=TEXT_BETSIZE, icon_custom_emoji_id=PREMIUM_EMOJIS["betsize"], style="primary")
-E_PROFIT = KeyboardButton(text=TEXT_PROFIT, icon_custom_emoji_id=PREMIUM_EMOJIS["profit"], style="primary")
-E_HIT = KeyboardButton(text=TEXT_HIT, icon_custom_emoji_id=PREMIUM_EMOJIS["hit"], style="primary")
-E_PREDICT = KeyboardButton(text=TEXT_PREDICT, icon_custom_emoji_id=PREMIUM_EMOJIS["predict"], style="primary")
-E_LOGOUT = KeyboardButton(text=TEXT_LOGOUT, icon_custom_emoji_id=PREMIUM_EMOJIS["logout"], style="danger")
-E_LOGIN = KeyboardButton(text=TEXT_LOGIN, icon_custom_emoji_id=PREMIUM_EMOJIS["login"], style="primary")
-E_BACK = KeyboardButton(text=TEXT_BACK, icon_custom_emoji_id=PREMIUM_EMOJIS["back"], style="primary")
+E_INFO = KeyboardButton(
+    text=TEXT_INFO,
+    icon_custom_emoji_id=PREMIUM_EMOJIS["info"],
+    style="primary"
+)
+E_BALANCE = KeyboardButton(
+    text=TEXT_BALANCE,
+    icon_custom_emoji_id=PREMIUM_EMOJIS["balance"],
+    style="primary"
+)
+E_STATUS = KeyboardButton(
+    text=TEXT_STATUS,
+    icon_custom_emoji_id=PREMIUM_EMOJIS["status"],
+    style="primary"
+)
+E_START = KeyboardButton(
+    text=TEXT_START,
+    icon_custom_emoji_id=PREMIUM_EMOJIS["start"],
+    style="success"
+)
+E_STOP = KeyboardButton(
+    text=TEXT_STOP,
+    icon_custom_emoji_id=PREMIUM_EMOJIS["stop"],
+    style="danger"
+)
+E_GAMES = KeyboardButton(
+    text=TEXT_GAMES,
+    icon_custom_emoji_id=PREMIUM_EMOJIS["games"],
+    style="primary"
+)
+E_AI = KeyboardButton(
+    text=TEXT_AI,
+    icon_custom_emoji_id=PREMIUM_EMOJIS["ai"],
+    style="primary"
+)
+E_BETSIZE = KeyboardButton(
+    text=TEXT_BETSIZE,
+    icon_custom_emoji_id=PREMIUM_EMOJIS["betsize"],
+    style="primary"
+)
+E_PROFIT = KeyboardButton(
+    text=TEXT_PROFIT,
+    icon_custom_emoji_id=PREMIUM_EMOJIS["profit"],
+    style="primary"
+)
+E_HIT = KeyboardButton(
+    text=TEXT_HIT,
+    icon_custom_emoji_id=PREMIUM_EMOJIS["hit"],
+    style="primary"
+)
+E_PREDICT = KeyboardButton(
+    text=TEXT_PREDICT,
+    icon_custom_emoji_id=PREMIUM_EMOJIS["predict"],
+    style="primary"
+)
+E_LOGOUT = KeyboardButton(
+    text=TEXT_LOGOUT,
+    icon_custom_emoji_id=PREMIUM_EMOJIS["logout"],
+    style="danger"
+)
+E_LOGIN = KeyboardButton(
+    text=TEXT_LOGIN,
+    icon_custom_emoji_id=PREMIUM_EMOJIS["login"],
+    style="primary"
+)
+E_BACK = KeyboardButton(
+    text=TEXT_BACK,
+    icon_custom_emoji_id=PREMIUM_EMOJIS["back"],
+    style="primary"
+)
 
 # ==========================================================
 # PREMIUM EMOJIS FOR MESSAGES
@@ -128,12 +184,28 @@ P_6 = '<tg-emoji emoji-id="5807461353799030682">🌟</tg-emoji>'
 # ==========================================================
 
 def get_main_keyboard():
-    return ReplyKeyboardMarkup(keyboard=[[E_LOGIN]], resize_keyboard=True)
+    return ReplyKeyboardMarkup(
+        keyboard=[
+            [E_LOGIN]
+        ],
+        resize_keyboard=True
+    )
 
 def get_site_keyboard():
     return ReplyKeyboardMarkup(
         keyboard=[
-            [KeyboardButton(text="777BIGWIN", style="success"), KeyboardButton(text="6LOTTERY", style="danger")],
+            [
+                KeyboardButton(
+                    text="777BIGWIN",
+                    icon_custom_emoji_id=PREMIUM_EMOJIS["login"],
+                    style="success"
+                ),
+                KeyboardButton(
+                    text="6LOTTERY",
+                    icon_custom_emoji_id=PREMIUM_EMOJIS["login"],
+                    style="danger"
+                )
+            ],
             [E_BACK]
         ],
         resize_keyboard=True
@@ -153,40 +225,72 @@ def get_logged_in_keyboard():
     )
 
 def get_ai_mode_keyboard():
+    """AI Mode keyboard with premium emojis and color styles"""
     keyboard = []
     row = []
-    for key, mode in AI_MODES.items():
+    
+    for key, mode in ai_engines.AI_MODES.items():
         mode_name = mode["name"]
-        btn = KeyboardButton(text=mode_name)
+        emoji_id = ai_engines.AI_MODE_EMOJIS.get(mode_name, PREMIUM_EMOJIS["ai"])
+        
+        btn = KeyboardButton(
+            text=mode_name,
+            icon_custom_emoji_id=emoji_id,
+            style="primary"
+        )
         row.append(btn)
         if len(row) == 2:
             keyboard.append(row)
             row = []
     if row:
         keyboard.append(row)
+    
     keyboard.append([E_BACK])
     return ReplyKeyboardMarkup(keyboard=keyboard, resize_keyboard=True)
 
 def get_cancel_keyboard():
-    return ReplyKeyboardMarkup(keyboard=[[KeyboardButton(text="Cancel")]], resize_keyboard=True)
+    return ReplyKeyboardMarkup(
+        keyboard=[[KeyboardButton(text="Cancel")]],
+        resize_keyboard=True
+    )
 
 def get_hit_betting_inline_keyboard(current_wait: int = 0):
     keyboard = []
     number_buttons = []
     for i in range(1, 10):
         btn_style = "success" if current_wait == i else "primary"
-        number_buttons.append(InlineKeyboardButton(text=str(i), callback_data=f"hitbet_{i}", style=btn_style))
+        number_buttons.append(
+            InlineKeyboardButton(
+                text=str(i),
+                callback_data=f"hitbet_{i}",
+                style=btn_style
+            )
+        )
     for i in range(0, 9, 3):
         keyboard.append(number_buttons[i:i+3])
     disable_text = "0 (Disabled)" if current_wait == 0 else "0 (Disable)"
-    keyboard.append([InlineKeyboardButton(text=disable_text, callback_data="hitbet_0", style="danger")])
+    keyboard.append([
+        InlineKeyboardButton(
+            text=disable_text,
+            callback_data="hitbet_0",
+            style="danger"
+        )
+    ])
     return InlineKeyboardMarkup(inline_keyboard=keyboard)
 
 def get_ai_prediction_toggle_keyboard(is_enabled: bool):
     if is_enabled:
-        btn = InlineKeyboardButton(text="✅ Enabled", callback_data="toggle_aipred", style="success")
+        btn = InlineKeyboardButton(
+            text="✅ Enabled",
+            callback_data="toggle_aipred",
+            style="success"
+        )
     else:
-        btn = InlineKeyboardButton(text="❌ Disabled", callback_data="toggle_aipred", style="danger")
+        btn = InlineKeyboardButton(
+            text="❌ Disabled",
+            callback_data="toggle_aipred",
+            style="danger"
+        )
     return InlineKeyboardMarkup(inline_keyboard=[[btn]])
 
 # ==========================================================
@@ -497,7 +601,8 @@ async def process_password(message: types.Message, state: FSMContext):
             "longest_lose_streak": 0,
             "last_betted_issue": None,
             "token": token,
-            "min_bet": min_bet
+            "min_bet": min_bet,
+            "last_checked_issue": None  # ← FIX: ဒါကို ထည့်ပါ
         }
 
         await loading_msg.delete()
@@ -540,7 +645,7 @@ async def cmd_ai_mode(message: types.Message):
         return await message.answer("⚠️ ကျေးဇူးပြု၍ Login ဦးစွာပြုလုပ်ပါ")
     await message.answer("🧠 <b>AI Mode</b>", reply_markup=get_ai_mode_keyboard())
 
-@dp.message(F.text.in_([m["name"] for m in AI_MODES.values()]))
+@dp.message(F.text.in_([m["name"] for m in ai_engines.AI_MODES.values()]))
 async def set_ai_mode(message: types.Message):
     user_tg_id = message.from_user.id
     if user_tg_id not in active_sessions:
@@ -703,6 +808,7 @@ async def place_auto_bet(user_tg_id: int, bet_type: str, amount: int) -> tuple:
             logger.warning("No issue number available")
             return False, None, 0
         
+        # ← FIX: ဒီမှာ စစ်ပါ
         last_issue = session.get("last_betted_issue")
         if issue == last_issue:
             logger.info(f"Already bet on issue {issue}")
@@ -719,6 +825,7 @@ async def place_auto_bet(user_tg_id: int, bet_type: str, amount: int) -> tuple:
         )
         
         if result.get('code') == 0:
+            # ← FIX: ဒီမှာ သိမ်းပါ
             session["last_betted_issue"] = issue
             session["total_bets"] = session.get("total_bets", 0) + 1
             
@@ -761,7 +868,7 @@ async def place_auto_bet(user_tg_id: int, bet_type: str, amount: int) -> tuple:
         return False, None, 0
 
 async def auto_bet_loop(user_tg_id: int, message: types.Message):
-    """Main auto-betting loop - FULLY FIXED"""
+    """Main auto-betting loop - with Martingale Strategy"""
     await message.answer(f"{P_5} Auto-Betting စတင်ပါပြီ!")
     
     session = active_sessions.get(user_tg_id)
@@ -773,6 +880,7 @@ async def auto_bet_loop(user_tg_id: int, message: types.Message):
         return
     
     consecutive_failures = 0
+    last_betted_issue = None
     
     while active_sessions.get(user_tg_id, {}).get("is_auto_betting", False):
         try:
@@ -787,24 +895,27 @@ async def auto_bet_loop(user_tg_id: int, message: types.Message):
                 continue
             
             # 3. Check if already bet on this issue
-            last_issue = session.get("last_betted_issue")
-            if current_issue == last_issue:
+            if current_issue == last_betted_issue:
+                logger.info(f"Already bet on issue {current_issue}, waiting for next...")
                 await asyncio.sleep(3)
                 continue
             
-            # 4. Get bet amount from sequence
-            sequence = session.get("bet_sequence", [10])
+            # 4. ✅ MARTINGALE STRATEGY - Get bet amount from sequence
+            sequence = session.get("bet_sequence", [10, 20, 40])
             step = session.get("current_bet_step", 0)
+            
+            # ✅ If step exceeds sequence length, reset to 0
             if step >= len(sequence):
                 step = 0
                 session["current_bet_step"] = 0
+            
             current_amount = sequence[step]
             
             # 5. Check min bet
             min_bet = session.get("min_bet", 10)
             if current_amount < min_bet:
                 current_amount = min_bet
-                session["bet_sequence"] = [min_bet, min_bet*2, min_bet*4, min_bet*8]
+                session["bet_sequence"] = [min_bet, min_bet*2, min_bet*4]
             
             # 6. Check balance
             balance = api_client.get_balance()
@@ -824,7 +935,7 @@ async def auto_bet_loop(user_tg_id: int, message: types.Message):
                 f"{P_1} WINGO_30S : {current_issue}\n"
                 f"{P_1} AI Mode : {ai_mode}\n"
                 f"{P_1} Prediction : <b>{predicted_bet}</b> ({confidence:.1f}%)\n"
-                f"{P_4} Amount : {current_amount} Ks"
+                f"{P_4} Amount : {current_amount} Ks (Step {step+1}/{len(sequence)})"
                 f"</blockquote>"
             )
             await message.answer(betting_msg)
@@ -833,7 +944,9 @@ async def auto_bet_loop(user_tg_id: int, message: types.Message):
             success, result_status, win_amount = await place_auto_bet(user_tg_id, predicted_bet, current_amount)
             
             if success:
-                # 9. Show result
+                last_betted_issue = current_issue
+                
+                # 9. Show result and update step
                 if result_status == "WIN 🟢":
                     result_msg = (
                         f"<blockquote>"
@@ -841,25 +954,37 @@ async def auto_bet_loop(user_tg_id: int, message: types.Message):
                         f"─────────────────\n"
                         f"{P_3} Issue : {current_issue}\n"
                         f"{P_3} Bet : {predicted_bet}\n"
-                        f"{P_2} Amount : {current_amount} Ks"
+                        f"{P_2} Amount : {current_amount} Ks\n"
+                        f"─────────────────\n"
+                        f"🔄 <b>Next Bet:</b> {sequence[0]} Ks (Reset to first)"
                         f"</blockquote>"
                     )
-                    # Move to next step in sequence (win = reset to first)
+                    # ✅ WIN = Reset to first step (10 Ks)
                     session["current_bet_step"] = 0
                     consecutive_failures = 0
                     
                 elif result_status == "LOSE 🔴":
+                    # Calculate next step
+                    next_step = step + 1
+                    if next_step >= len(sequence):
+                        next_amount = sequence[0]  # Reset to first
+                        next_step = 0
+                    else:
+                        next_amount = sequence[next_step]
+                    
                     result_msg = (
                         f"<blockquote>"
                         f"❌ <b>LOSE</b> 💸 {current_amount:.2f} Ks\n"
                         f"─────────────────\n"
                         f"{P_3} Issue : {current_issue}\n"
                         f"{P_3} Bet : {predicted_bet}\n"
-                        f"{P_2} Amount : {current_amount} Ks"
+                        f"{P_2} Amount : {current_amount} Ks\n"
+                        f"─────────────────\n"
+                        f"🔄 <b>Next Bet:</b> {next_amount} Ks (Step {next_step+1}/{len(sequence)})"
                         f"</blockquote>"
                     )
-                    # Move to next step in sequence (loss = next bet)
-                    session["current_bet_step"] += 1
+                    # ✅ LOSE = Move to next step
+                    session["current_bet_step"] = next_step
                     consecutive_failures = 0
                     
                 else:
@@ -870,7 +995,7 @@ async def auto_bet_loop(user_tg_id: int, message: types.Message):
                         f"{P_3} Issue : {current_issue}"
                         f"</blockquote>"
                     )
-                    session["current_bet_step"] += 1
+                    # ✅ PENDING = Keep same step
                     consecutive_failures = 0
                 
                 await message.answer(result_msg)
@@ -891,7 +1016,6 @@ async def auto_bet_loop(user_tg_id: int, message: types.Message):
                     session["is_auto_betting"] = False
                     break
                 
-                # Wait for next round
                 await asyncio.sleep(INTERVAL_SECONDS)
                 
             else:
@@ -916,6 +1040,9 @@ async def btn_start_auto(message: types.Message, state: FSMContext):
         return await message.answer("⚠️ ကျေးဇူးပြု၍ Login ဦးစွာပြုလုပ်ပါ")
     if active_sessions[user_tg_id].get("is_auto_betting", False):
         return await message.answer("⚠️ Auto Bet လုပ်ဆောင်နေပြီးဖြစ်ပါသည်။")
+    
+    # Reset last_betted_issue when starting
+    active_sessions[user_tg_id]["last_betted_issue"] = None
     active_sessions[user_tg_id]["is_auto_betting"] = True
     asyncio.create_task(auto_bet_loop(user_tg_id, message))
 
