@@ -3,6 +3,7 @@
 
 import os
 from dotenv import load_dotenv
+import logging
 
 load_dotenv()
 
@@ -14,8 +15,8 @@ class Config:
     OWNER_ID = int(os.getenv('OWNER_ID', '0'))
     
     # Account
-    USERNAME = os.getenv('USERNAME', '')
-    PASSWORD = os.getenv('PASSWORD', '')
+    USERNAME = os.getenv('USERNAME', '959680090540')
+    PASSWORD = os.getenv('PASSWORD', 'Bbynnds8825')
     
     # Site
     SITE = os.getenv('SITE', '777BIGWIN')
@@ -36,8 +37,8 @@ class Config:
     # MongoDB
     MONGO_URI = os.getenv('MONGO_URI', '')
     
-    # Logging
-    LOG_LEVEL = os.getenv('LOG_LEVEL', 'INFO')
+    # Logging - Default to INFO if not set
+    LOG_LEVEL = os.getenv('LOG_LEVEL', 'INFO').upper()  # 👈 FIX: Add .upper() and default
     
     @classmethod
     def get_bet_sequence(cls) -> list:
@@ -50,3 +51,6 @@ class Config:
         if not cls.MONGO_URI:
             raise ValueError("MONGO_URI is required")
         return True
+
+# Print config on load (for debugging)
+print(f"✅ LOG_LEVEL: {Config.LOG_LEVEL}")
