@@ -80,3 +80,20 @@ async def get_user_subscription(user_id: int):
     if user and "expire_date" in user:
         return user["expire_date"]
     return None
+
+
+
+async def save_custom_pattern(user_id: int, pattern: str):
+    """User သတ်မှတ်ထားသော Custom Pattern ကို သိမ်းဆည်းရန်"""
+    await users_collection.update_one(
+        {"_id": user_id},
+        {"$set": {"custom_pattern": pattern}},
+        upsert=True
+    )
+
+async def get_custom_pattern(user_id: int):
+    """User ၏ Custom Pattern ကို ဆွဲယူရန်"""
+    user = await users_collection.find_one({"_id": user_id})
+    if user and "custom_pattern" in user:
+        return user["custom_pattern"]
+    return "B" # မရှိပါက Default အနေဖြင့် "B" ကို သုံးပါမည်
