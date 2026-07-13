@@ -1,4 +1,3 @@
-# a.py
 import asyncio
 import os
 import html
@@ -29,13 +28,6 @@ from aiogram.types import (
 import database as db 
 import ai_engines
 from ai_engines import AI_MODES, AI_MODE_EMOJIS
-from aiogram.types import ForceReply
-
-
-# State ကြေညာခြင်း
-class PatternState(StatesGroup):
-    waiting_for_pattern = State()
-
 
 # ==========================================================
 # ⚙️ Configuration
@@ -140,14 +132,6 @@ E_PREDICT = KeyboardButton(text=TEXT_PREDICT, icon_custom_emoji_id="589099776333
 E_LOGOUT = KeyboardButton(text=TEXT_LOGOUT, icon_custom_emoji_id="5875180111744995604", style="danger")
 E_LOGIN = KeyboardButton(text=TEXT_LOGIN, icon_custom_emoji_id="5884041323843955199", style="primary")
 E_BACK = KeyboardButton(text=TEXT_BACK, icon_custom_emoji_id="5848119413041431362", style="primary")
-TEXT_CUSTOM_PATTERN = "Set Pattern" 
-
-E_CUSTOM_PATTERN = KeyboardButton(
-    text=TEXT_CUSTOM_PATTERN, 
-    icon_custom_emoji_id="5877443460725739250", # 📝 Custom Emoji ID
-    style="primary" # Color Style
-)
-
 
 P_1 = '<tg-emoji emoji-id="5890997763331591703">⚙️</tg-emoji>'
 P_2 = '<tg-emoji emoji-id="5875180111744995604">⚙️</tg-emoji>'
@@ -201,8 +185,14 @@ class AuthMiddleware(BaseMiddleware):
         if user_id:
             if user_id == OWNER_ID:
                 return await handler(event, data)
+                
+            # UID Whitelist ကို စစ်ဆေးခြင်း
+            whitelisted = await db.db["whitelist"].find_one({"uid": str(user_id)})
+            if whitelisted:
+                return await handler(event, data)
             
-            if isinstance(event, types.Message) and len(text) == 16 and text[:8].isdigit() and text[8:].isupper():
+            # Key Format အသစ်: "PSP-YYYYMMDDRANDOM" (Total length = 20)
+            if isinstance(event, types.Message) and text.startswith("PSP-") and len(text) == 20:
                 return await handler(event, data)
                 
             expire_iso = await db.get_user_subscription(user_id)
@@ -329,10 +319,11 @@ def get_cancel_keyboard():
     return ReplyKeyboardMarkup(keyboard=[[KeyboardButton(text="Cancel")]], resize_keyboard=True)
 
 # ==========================================================
-# 👑 Owner Commands
+# 👑 Owner Commands (Keys & Whitelist)
 # ==========================================================
 @dp.message(F.text.startswith(".key "))
 async def cmd_generate_key(message: types.Message):
+    """တစ်ခုတည်းသော Key ကို ထုတ်ပေးရန် Command"""
     if message.from_user.id != OWNER_ID: return
     parts = message.text.split(" ")
     if len(parts) < 2:
@@ -343,29 +334,64 @@ async def cmd_generate_key(message: types.Message):
         return await message.answer("⚠️ အချိန်သတ်မှတ်ချက် မှားနေပါသည်။\nဥပမာ: <code>2H</code>, <code>5D</code>")
     
     date_prefix = get_myanmar_time().strftime("%Y%m%d")
-    random_str = ''.join(random.choices(string.ascii_uppercase, k=8))
-    key_str = f"{date_prefix}{random_str}"
+    random_str = ''.join(random.choices(string.ascii_uppercase + string.digits, k=8))
+    key_str = f"PSP-{date_prefix}{random_str}"
     
     await db.create_key(key_str, duration)
     await message.answer(f"✅ <b>Key အသစ် ဖန်တီးပြီးပါပြီ။</b>\n\n🔑 Key: <code>{key_str}</code>\n⏱️ Duration: <b>{duration}</b>")
 
-@dp.message(F.text.startswith(".add "))
-async def cmd_add_user(message: types.Message):
+@dp.message(F.text.startswith(".gen "))
+async def cmd_gen_keys(message: types.Message):
+    """Multiple Keys ကို တစ်ပြိုင်နက်တည်း ထုတ်ပေးရန် Command"""
     if message.from_user.id != OWNER_ID: return
     parts = message.text.split(" ")
     if len(parts) < 3:
-        return await message.answer("⚠️ Format မှားနေပါသည်။ ဥပမာ: <code>.add 123456789 2D</code>")
+        return await message.answer("⚠️ Format မှားနေပါသည်။\nအသုံးပြုရန်: <code>.gen 5 2H</code>, <code>.gen 10 5D</code>")
+        
+    try:
+        count = int(parts[1])
+        duration = parts[2].strip().upper()
+        if not parse_duration(duration): raise ValueError
+    except:
+        return await message.answer("⚠️ အချိန်သတ်မှတ်ချက် သို့မဟုတ် အရေအတွက် မှားနေပါသည်။ ဥပမာ: <code>.gen 5 2H</code>")
+        
+    date_prefix = get_myanmar_time().strftime("%Y%m%d")
+    keys = []
+    
+    for _ in range(count):
+        random_str = ''.join(random.choices(string.ascii_uppercase + string.digits, k=8))
+        key_str = f"PSP-{date_prefix}{random_str}"
+        await db.create_key(key_str, duration)
+        keys.append(key_str)
+        
+    keys_text = "\n".join([f"<code>{k}</code>" for k in keys])
+    await message.answer(f"✅ <b>Keys {count} ခု ဖန်တီးပြီးပါပြီ။</b>\n\n{keys_text}\n\n⏱️ Duration: <b>{duration}</b>")
+
+@dp.message(F.text.startswith(".add "))
+async def cmd_add_uid(message: types.Message):
+    """Telegram UID ကို Whitelist ထဲသို့ ထည့်သွင်းရန်"""
+    if message.from_user.id != OWNER_ID: return
+    parts = message.text.split(" ")
+    if len(parts) < 2:
+        return await message.answer("⚠️ ဥပမာ: <code>.add 123456789</code>")
         
     target_id = parts[1].strip()
-    duration = parts[2].strip().upper()
-    td = parse_duration(duration)
-    if not td: return await message.answer("⚠️ Duration မှားနေပါသည်။ (ဥပမာ: 2H, 5D)")
-    
-    new_expire = get_myanmar_time() + td
-    await db.update_user_subscription(int(target_id), new_expire.isoformat())
-    await message.answer(f"✅ User ID: <code>{target_id}</code> ကို <b>{duration}</b> စာ အသုံးပြုခွင့် ပေးလိုက်ပါပြီ။")
+    await db.db["whitelist"].update_one({"uid": target_id}, {"$set": {"uid": target_id}}, upsert=True)
+    await message.answer(f"✅ Telegram UID: <code>{target_id}</code> ကို Whitelist ထဲသို့ ထည့်သွင်းပြီးပါပြီ။ (Key မလိုဘဲ သုံးနိုင်ပါသည်)")
 
-@dp.message(lambda msg: msg.text and len(msg.text) == 16 and msg.text[:8].isdigit() and msg.text[8:].isupper())
+@dp.message(F.text.startswith(".del "))
+async def cmd_del_uid(message: types.Message):
+    """Telegram UID ကို Whitelist မှ ဖယ်ရှားရန်"""
+    if message.from_user.id != OWNER_ID: return
+    parts = message.text.split(" ")
+    if len(parts) < 2:
+        return await message.answer("⚠️ ဥပမာ: <code>.del 123456789</code>")
+        
+    target_id = parts[1].strip()
+    await db.db["whitelist"].delete_one({"uid": target_id})
+    await message.answer(f"🗑️ Telegram UID: <code>{target_id}</code> ကို Whitelist မှ ပယ်ဖျက်လိုက်ပါပြီ။")
+
+@dp.message(lambda msg: msg.text and msg.text.startswith("PSP-") and len(msg.text) == 20)
 async def process_key_redemption(message: types.Message):
     key_str = message.text.strip()
     key_data = await db.get_key(key_str)
@@ -671,8 +697,8 @@ async def place_auto_bet(user_tg_id: int, current_issue: str, bet_type: str, tot
         payload = {
             'typeId': 30,
             'issuenumber': current_issue,
-            'amount': base_amount,   # အခြေခံလောင်းကြေး (10, 100, 1000, 10000)
-            'betCount': bet_count,   # လောင်းမည့် အဆ (Multiplier)
+            'amount': base_amount,
+            'betCount': bet_count,
             'gameType': 2,
             'selectType': select_type,
             'language': 7
@@ -697,7 +723,6 @@ async def place_auto_bet(user_tg_id: int, current_issue: str, bet_type: str, tot
         if not silent:
             print(f"Betting Request Error: {e}")
         return False
-
 
 # ==========================================================
 # 🔮 AI Prediction Broadcast Loop
@@ -781,14 +806,12 @@ async def prediction_broadcast_loop(user_tg_id, message: types.Message):
                         f"{P_4} Status : {status_text}"
                         "</blockquote>"
                     )
-
                 except: pass
                 await asyncio.sleep(2)
             else:
                 await asyncio.sleep(2)
         except Exception: 
             await asyncio.sleep(5)
-
 
 # ==========================================================
 # 🌟 Premium Emojis Variables
@@ -800,7 +823,6 @@ E_GRID    = '<tg-emoji emoji-id="5884290437459480896">🔠</tg-emoji>'
 E_EDIT    = '<tg-emoji emoji-id="5985774024968379294">📝</tg-emoji>'
 E_DOC     = '<tg-emoji emoji-id="5956561916573782596">📄</tg-emoji>'
 E_FLOWER  = '<tg-emoji emoji-id="5967574255670399788">🌸</tg-emoji>'
-
 
 # ==========================================================
 # 🔄 Continuous Auto Bet Loop Task 
@@ -837,7 +859,6 @@ async def auto_bet_loop(user_tg_id, message: types.Message):
                              f"{E_FLOWER} Pred : <b>{predicted_bet.upper()}</b> (စောင့်ကြည့်နေပါသည်)"
                              "</blockquote>"
                         )
-
                         
                         actual_result = "? | ?"
                         for _ in range(20):
@@ -895,7 +916,6 @@ async def auto_bet_loop(user_tg_id, message: types.Message):
                         "</blockquote>"
                     )
 
-
                     last_betted_issue = current_issue
                     await asyncio.sleep(7) # Timing alignment
 
@@ -920,7 +940,6 @@ async def auto_bet_loop(user_tg_id, message: types.Message):
                                         new_bal_val = float(data_field.get("balance", data_field.get("amount", 0.0)))
                                     else:
                                         new_bal_val = float(data_field)
-
 
                         try:
                             actual_size = actual_result.split(" | ")[1].strip().lower() 
@@ -971,53 +990,6 @@ async def auto_bet_loop(user_tg_id, message: types.Message):
         except Exception as e:
             print(f"Auto Loop Error: {e}")
             await asyncio.sleep(5)
-
-
-# 1. Custom Pattern Button ကို နှိပ်လိုက်သည့်အခါ
-@dp.message(F.text == TEXT_CUSTOM_PATTERN)
-async def prompt_custom_pattern(message: types.Message, state: FSMContext):
-    # ForceReply ဖြင့် Keyboard ကို တန်းပွင့်စေခြင်း
-    await message.answer(
-        "သင်အသုံးပြုလိုသော Pattern ကို ရိုက်ထည့်ပါ။\n(ဥပမာ - BBSSBSBS)",
-        reply_markup=ForceReply(selective=True) 
-    )
-    await state.set_state(PatternState.waiting_for_pattern)
-
-# 2. User မှ BBSSBSBS စသည်ဖြင့် ရိုက်ထည့်လိုက်သည့်အခါ
-@dp.message(PatternState.waiting_for_pattern)
-async def process_custom_pattern(message: types.Message, state: FSMContext):
-    pattern = message.text.upper().replace(" ", "")
-    
-    # Validation စစ်ဆေးခြင်း
-    if not all(c in ['B', 'S'] for c in pattern):
-        await message.answer("စာလုံးအမှားပါဝင်နေပါသည်။ 'B' နှင့် 'S' ကိုသာ အသုံးပြုပါ။\n(ဥပမာ - BBSSBSBS)")
-        return
-        
-    user_id = message.from_user.id
-    
-    # DB တွင် သိမ်းဆည်းခြင်း
-    await db.save_custom_pattern(user_id, pattern)
-    await db.update_user_ai_mode(user_id, "custom_pattern")
-    
-    await state.clear()
-    
-    # အောင်မြင်ကြောင်း ပြန်လည်အကြောင်းကြားခြင်း
-    await message.answer(
-        f"✅ သင့်စိတ်ကြိုက် Pattern {pattern} အား အောင်မြင်စွာ မှတ်သားထားပါပြီ။"
-        # ဤနေရာတွင် မူလ Keyboard ပြန်ပေါ်စေရန် အစ်ကို့ရဲ့ main_keyboard() ကို reply_markup အနေဖြင့် ပြန်ခေါ်ပေးနိုင်ပါတယ်။
-    )
-
-
-@dp.message(F.text.regexp(r'^[BbSs]{2,}$'))
-async def auto_detect_pattern(message: types.Message):
-    pattern = message.text.upper()
-    user_id = message.from_user.id
-    
-    await db.save_custom_pattern(user_id, pattern)
-    await db.update_user_ai_mode(user_id, "custom_pattern")
-    
-    await message.answer(f"✅ Custom Pattern <b>{pattern}</b> ကို အလိုအလျောက် သတ်မှတ်ပြီးပါပြီ။")
-
 
 # ==========================================================
 # 🎯 Feature Handlers (Hit, Profit, AI Mode, BetSize)
@@ -1163,11 +1135,9 @@ async def check_balance(message: types.Message, state: FSMContext):
                 bal_res = await resp.json()
                 if bal_res.get("code") == 0:
                     data_field = bal_res.get("data")
-                    # data သည် dictionary ဖြစ်နေလျှင်
                     if isinstance(data_field, dict):
                         balance_val = data_field.get("balance", data_field.get("amount", 0.0))
                     else:
-                        # data သည် ဂဏန်းတိုက်ရိုက် ဖြစ်နေလျှင်
                         balance_val = data_field
                         
                     balance_text = f"{float(balance_val):.2f} Ks"
@@ -1180,7 +1150,6 @@ async def check_balance(message: types.Message, state: FSMContext):
     except Exception as e:
         await loading_msg.delete()
         await message.answer(f"⚠️ <b>Error:</b> Balance စစ်ဆေးရာတွင် အခက်အခဲရှိနေပါသည်။", reply_markup=get_logged_in_keyboard())
-
 
 @dp.message(LoginForm.main_menu, F.text == TEXT_INFO)
 async def show_info(message: types.Message, state: FSMContext):
