@@ -71,7 +71,15 @@ async def process_custom_pattern(message: types.Message, state: FSMContext):
     )
 
 
-
+@dp.message(F.text.regexp(r'^[BbSs]{2,}$'))
+async def auto_detect_pattern(message: types.Message):
+    pattern = message.text.upper()
+    user_id = message.from_user.id
+    
+    await db.save_custom_pattern(user_id, pattern)
+    await db.update_user_ai_mode(user_id, "custom_pattern")
+    
+    await message.answer(f"✅ Custom Pattern <b>{pattern}</b> ကို အလိုအလျောက် သတ်မှတ်ပြီးပါပြီ။")
 
 
 
