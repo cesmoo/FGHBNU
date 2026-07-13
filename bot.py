@@ -488,6 +488,7 @@ async def process_phone(message: types.Message, state: FSMContext):
         reply_markup=ReplyKeyboardRemove()
     )
 
+
 # ==========================================================
 # 🔥 API LOGIN LOGIC - SITE AUTO DETECT
 # ==========================================================
@@ -500,11 +501,13 @@ async def process_password(message: types.Message, state: FSMContext):
     site_name = data.get('site', '777BIGWIN')
     user_tg_id = message.from_user.id
 
+    # ✅ APIClient ကို site နဲ့အတူ ဖန်တီးတယ်
     api_client = APIClient(site=site_name)
 
     try:
         loading_msg = await message.answer(f"{P_1} အကောင့်ဝင်ရန် ကြိုးစားနေပါသည်...")
 
+        # ✅ 1. Login
         result = api_client.login(username, password)
 
         if result.get('code') != 0:
@@ -519,15 +522,29 @@ async def process_password(message: types.Message, state: FSMContext):
         token = result['data']['token']
         api_client.set_token(token)
 
+        # ✅ 2. Get User Info (ဒီမှာ error ဖြစ်ခဲ့တာ)
         user_info = api_client.get_user_info()
+        
+        if user_info.get('code') != 0:
+            await loading_msg.delete()
+            await message.answer(
+                f"❌ အချက်အလက်များ ရယူရန် မအောင်မြင်ပါ",
+                reply_markup=get_main_keyboard()
+            )
+            await state.clear()
+            return
+
         user_data = user_info.get('data', {})
         user_id = user_data.get('userId', 'N/A')
         nickname = user_data.get('nickName', 'Unknown')
         balance = str(user_data.get('amount', 0))
 
+        # ✅ 3. Get Balance
         balance_value = api_client.get_balance()
         site_login_time = get_myanmar_time().strftime("%Y-%m-%d %H:%M:%S")
 
+        # ✅ 4. Save to database
+        from database import save_user_login, get_user
         db_user = await get_user(user_tg_id)
         ai_mode = db_user.get("ai_mode", "Pattern AI") if db_user else "Pattern AI"
 
@@ -536,9 +553,11 @@ async def process_password(message: types.Message, state: FSMContext):
             nickname, balance, site_login_time, ai_mode
         )
 
+        # ✅ 5. Set site-specific settings
         min_bet = 100 if site_name == '6LOTTERY' else 10
         default_sequence = [100, 200, 400, 800] if site_name == '6LOTTERY' else [10, 20, 40, 80]
 
+        # ✅ 6. Store session
         await state.update_data(
             is_logged_in=True,
             username=username,
@@ -574,6 +593,7 @@ async def process_password(message: types.Message, state: FSMContext):
 
         await loading_msg.delete()
 
+        # ✅ 7. Show success message
         caption_text = (
             f"{P_5} <b>LOGIN SUCCESSFUL!</b>\n"
             "─────────────────\n\n"
