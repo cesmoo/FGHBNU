@@ -1474,16 +1474,34 @@ async def games(message: types.Message):
     )
 
 # ==========================================================
-# 🚀 MAIN BOT LOOP
+# 🚀 MAIN BOT LOOP - FIXED
 # ==========================================================
 
-async def main():
+def main():
+    """Main entry point - fixed for Render"""
     logger.info("🚀 Auto-Bot API Version စတင်နေပါပြီ...")
+    
+    try:
+        # Create new event loop
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        
+        # Run the bot
+        loop.run_until_complete(start_bot())
+        loop.run_forever()
+        
+    except KeyboardInterrupt:
+        logger.info("Bot ကို ရပ်လိုက်ပါပြီ")
+    finally:
+        try:
+            loop.close()
+        except:
+            pass
+
+async def start_bot():
+    """Start the bot"""
     await bot.delete_webhook(drop_pending_updates=True)
     await dp.start_polling(bot)
 
 if __name__ == '__main__':
-    try:
-        asyncio.run(main())
-    except KeyboardInterrupt:
-        logger.info("Bot ကို ရပ်လိုက်ပါပြီ")
+    main()
