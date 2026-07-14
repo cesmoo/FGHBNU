@@ -278,7 +278,7 @@ def get_logged_in_keyboard():
             [E_GAMES, E_AI],
             [E_BETSIZE, E_PROFIT], 
             [E_HIT, E_PREDICT],
-            [E_VIRTUAL, E_LOGOUT]  # Added Virtual Mode
+            [E_VIRTUAL, E_REAL, E_LOGOUT]  # Added Virtual Mode and Real Mode
         ],
         resize_keyboard=True
     )
@@ -322,7 +322,7 @@ def get_pro_ai_mode_keyboard():
     if row:
         keyboard.append(row)
         
-    back_btn = KeyboardButton(text="AI Menu သို့ပြန်သွားရန်", icon_custom_emoji_id="5848119413041431362", style="danger")
+    back_btn = KeyboardButton(text="rdmarkup(keyboard=keyb", icon_custom_emoji_id="5848119413041431362", style="danger")
     keyboard.append([back_btn])
     return ReplyKeyboardMarkup(keyboard=keyboard, resize_keyboard=True)
 
@@ -680,7 +680,7 @@ async def get_ai_prediction(user_tg_id):
             user_ai_name = session_data.get("ai_mode", "🎯 Pattern AI")
             
             # --- Custom Pattern အတွက် ထပ်တိုး Logic ---
-            if user_ai_name == "🛠️ Set Pattern":
+            if user_ai_name == "Set Pattern":
                 pat = session_data.get("custom_pattern", ["BIG"])
                 step = session_data.get("custom_pattern_step", 0)
                 target_bet = pat[step]
@@ -773,23 +773,23 @@ async def place_auto_bet(user_tg_id: int, current_issue: str, bet_type: str, tot
 @dp.message(F.text == TEXT_PREDICT)
 async def btn_ai_prediction_toggle(message: types.Message):
     user_tg_id = message.from_user.id
-    if user_tg_id not in active_sessions: return await message.answer("⚠️ အရင်ဆုံး Login ဝင်ပေးပါ။")
+    if user_tg_id not in active_sessions: return await message.answer("အရင်ဆုံး Login ဝင်ပေးပါ။")
     is_enabled = active_sessions[user_tg_id].get("is_ai_prediction_enabled", False)
     await message.answer("AI Prediction Broadcast", reply_markup=get_ai_prediction_toggle_keyboard(is_enabled))
 
 @dp.callback_query(F.data == "toggle_aipred")
 async def process_toggle_aipred(callback: types.CallbackQuery):
     user_tg_id = callback.from_user.id
-    if user_tg_id not in active_sessions: return await callback.answer("⚠️ Session Expired.", show_alert=True)
+    if user_tg_id not in active_sessions: return await callback.answer("Session Expired.", show_alert=True)
     new_state = not active_sessions[user_tg_id].get("is_ai_prediction_enabled", False)
     active_sessions[user_tg_id]["is_ai_prediction_enabled"] = new_state
     
     await callback.message.edit_reply_markup(reply_markup=get_ai_prediction_toggle_keyboard(new_state))
     if new_state:
-        await callback.answer("✅ AI Prediction ပြသခြင်းကို ဖွင့်လိုက်ပါပြီ။", show_alert=True)
+        await callback.answer("AI Prediction ပြသခြင်းကို ဖွင့်လိုက်ပါပြီ။", show_alert=True)
         asyncio.create_task(prediction_broadcast_loop(user_tg_id, callback.message))
     else:
-        await callback.answer("❌ AI Prediction ပြသခြင်းကို ပိတ်လိုက်ပါပြီ။", show_alert=True)
+        await callback.answer("AI Prediction ပြသခြင်းကို ပိတ်လိုက်ပါပြီ။", show_alert=True)
 
 async def prediction_broadcast_loop(user_tg_id, message: types.Message):
     api_error_count = 0
@@ -1064,7 +1064,7 @@ async def auto_bet_loop(user_tg_id, message: types.Message):
                             active_sessions[user_tg_id]["current_bet_step"] = (step + 1) % len(sequence)
 
                         # --- Custom Pattern ကို Step တိုးရန် ---
-                        if ai_name == "🛠️ Set Pattern" and actual_size != "?":
+                        if ai_name == "Set Pattern" and actual_size != "?":
                             pat = active_sessions[user_tg_id].get("custom_pattern", ["BIG"])
                             current_c_step = active_sessions[user_tg_id].get("custom_pattern_step", 0)
                             active_sessions[user_tg_id]["custom_pattern_step"] = (current_c_step + 1) % len(pat)
@@ -1148,7 +1148,7 @@ async def cmd_ai_mode(message: types.Message):
 
 @dp.message(F.text.in_(VALID_AI_NAMES))
 async def set_ai_mode(message: types.Message, state: FSMContext):
-    if message.text == "🛠️ Set Pattern":
+    if message.text == "Set Pattern":
         await state.set_state(LoginForm.enter_custom_pattern)
         return await message.answer("🛠️ <b>Custom Pattern သတ်မှတ်ရန်:</b>\n\nB (အကြီး) နှင့် S (အသေး) ကိုသာ အသုံးပြု၍ စာလုံးဆက်တိုက်ရိုက်ပါ။\nဥပမာ: <code>BSBS</code> သို့မဟုတ် <code>BBSS</code>", reply_markup=get_cancel_keyboard())
 
@@ -1172,16 +1172,16 @@ async def process_custom_pattern(message: types.Message, state: FSMContext):
     if user_tg_id in active_sessions:
         active_sessions[user_tg_id]["custom_pattern"] = pattern_list
         active_sessions[user_tg_id]["custom_pattern_step"] = 0
-        active_sessions[user_tg_id]["ai_mode"] = "🛠️ Set Pattern"
+        active_sessions[user_tg_id]["ai_mode"] = "Set Pattern"
 
-    await db.update_user_ai_mode(user_tg_id, "🛠️ Set Pattern")
+    await db.update_user_ai_mode(user_tg_id, "Set Pattern")
     await state.set_state(LoginForm.main_menu)
 
     trigger = "SMALL" if pattern_list[0] == "BIG" else "BIG"
     
     await message.answer(f"✅ <b>Pattern သတ်မှတ်ပြီးပါပြီ:</b> <code>{raw_pattern}</code>\n\n🎯 <b>မှတ်ချက်:</b> အပြင်ရလဒ် <b>{trigger}</b> ထွက်ပေါ်ပြီးမှသာ ပထမဆုံးအကွက် ({pattern_list[0]}) ကို စတင်လောင်းပါမည်။", reply_markup=get_logged_in_keyboard())
 
-@dp.message(F.text == "ပင်မမီနူးသို့")
+@dp.message(F.text == "BACK")
 async def back_to_main(message: types.Message):
     await message.answer("ပင်မမီနူးသို့ ရောက်ရှိပါပြီ။", reply_markup=get_logged_in_keyboard())
 
@@ -1351,7 +1351,7 @@ async def cmd_pro_ai_menu(message: types.Message):
     )
     await message.answer(text, reply_markup=get_pro_ai_mode_keyboard())
 
-@dp.message(F.text == "AI Menu သို့ပြန်သွားရန်")
+@dp.message(F.text == "BACK")
 async def cmd_back_to_ai_menu(message: types.Message):
     if message.from_user.id not in active_sessions: return await message.answer("⚠️ Login ဝင်ပေးပါ။")
     await message.answer("AI Mode ရွေးချယ်ရန်", reply_markup=get_ai_mode_keyboard())
@@ -1367,7 +1367,7 @@ async def games(message: types.Message):
 async def cmd_virtual_mode(message: types.Message, state: FSMContext):
     user_tg_id = message.from_user.id
     if user_tg_id not in active_sessions:
-        return await message.answer("⚠️ Login ဝင်ပေးပါ။")
+        return await message.answer("Login ဝင်ပေးပါ။")
     
     # Check if already in virtual mode
     if active_sessions[user_tg_id].get("is_virtual_mode", False):
