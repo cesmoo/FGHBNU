@@ -53,8 +53,13 @@ SITE_CONFIGS = {
     "6Lottery": {
         "api_url": "https://6lotteryapi.com/api/webapi",
         "origin": "https://www.6win566.com"
+    },
+    "CK LOTTERY": {
+        "api_url": "https://ckygjf6r.com/api/webapi",
+        "origin": "https://cklottery.cc"
     }
 }
+
 
 def get_signed_payload(payload: dict) -> dict:
     """Frontend ၏ Signature တွက်ချက်မှု Logic အတိအကျ"""
@@ -256,10 +261,12 @@ def get_site_keyboard():
         keyboard=[
             [KeyboardButton(text="777BIGWIN", style="success"),
              KeyboardButton(text="6Lottery", style="danger")],
+            [KeyboardButton(text="CK LOTTERY", style="primary")],
             [E_BACK]
         ],
         resize_keyboard=True
     )
+
 
 def get_logged_in_keyboard():
     return ReplyKeyboardMarkup(
