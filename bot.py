@@ -121,6 +121,8 @@ TEXT_PREDICT = "AI Prediction"
 TEXT_LOGOUT = "Logout"
 TEXT_LOGIN = "Login"
 TEXT_BACK = "Back"
+TEXT_VIRTUAL_MODE = "Virtual Mode"  # NEW
+TEXT_REAL_MODE = "Real Mode"        # NEW
 
 E_INFO = KeyboardButton(text=TEXT_INFO, icon_custom_emoji_id="5868656545634689320", style="primary")
 E_BALANCE = KeyboardButton(text=TEXT_BALANCE, icon_custom_emoji_id="5868108575387671725", style="primary")
@@ -136,6 +138,8 @@ E_PREDICT = KeyboardButton(text=TEXT_PREDICT, icon_custom_emoji_id="589099776333
 E_LOGOUT = KeyboardButton(text=TEXT_LOGOUT, icon_custom_emoji_id="5875180111744995604", style="danger")
 E_LOGIN = KeyboardButton(text=TEXT_LOGIN, icon_custom_emoji_id="5884041323843955199", style="primary")
 E_BACK = KeyboardButton(text=TEXT_BACK, icon_custom_emoji_id="5848119413041431362", style="primary")
+E_VIRTUAL = KeyboardButton(text=TEXT_VIRTUAL_MODE, icon_custom_emoji_id="5807868868886009920", style="primary")
+E_REAL = KeyboardButton(text=TEXT_REAL_MODE, icon_custom_emoji_id="5868656545634689320", style="primary")
 
 P_1 = '<tg-emoji emoji-id="5890997763331591703">⚙️</tg-emoji>'
 P_2 = '<tg-emoji emoji-id="5875180111744995604">⚙️</tg-emoji>'
@@ -247,6 +251,7 @@ class LoginForm(StatesGroup):
     enter_bet_sequence = State() 
     enter_profit_target = State()
     enter_custom_pattern = State() 
+    enter_virtual_balance = State()  # NEW
 
 # ==========================================================
 # ⌨️ Keyboards
@@ -273,7 +278,7 @@ def get_logged_in_keyboard():
             [E_GAMES, E_AI],
             [E_BETSIZE, E_PROFIT], 
             [E_HIT, E_PREDICT],
-            [E_LOGOUT]
+            [E_VIRTUAL, E_LOGOUT]  # Added Virtual Mode
         ],
         resize_keyboard=True
     )
@@ -295,7 +300,7 @@ def get_ai_mode_keyboard():
     if row:
         keyboard.append(row)
     
-    pro_btn = KeyboardButton(text="👑 Pro AI Features", icon_custom_emoji_id="5807868868886009920", style="success")
+    pro_btn = KeyboardButton(text="Pro AI Features", icon_custom_emoji_id="5807868868886009920", style="success")
     back_btn = KeyboardButton(text="BACK", icon_custom_emoji_id="5848119413041431362", style="primary")
     keyboard.append([pro_btn])
     keyboard.append([back_btn])
@@ -317,7 +322,7 @@ def get_pro_ai_mode_keyboard():
     if row:
         keyboard.append(row)
         
-    back_btn = KeyboardButton(text="🔙 AI Menu သို့ပြန်သွားရန်", icon_custom_emoji_id="5848119413041431362", style="danger")
+    back_btn = KeyboardButton(text="AI Menu သို့ပြန်သွားရန်", icon_custom_emoji_id="5848119413041431362", style="danger")
     keyboard.append([back_btn])
     return ReplyKeyboardMarkup(keyboard=keyboard, resize_keyboard=True)
 
@@ -573,7 +578,10 @@ async def process_password(message: types.Message, state: FSMContext):
                 "hit_wait": 0,
                 "current_misses": 0,
                 "is_ai_prediction_enabled": False, 
-                "last_predicted_issue": None
+                "last_predicted_issue": None,
+                "is_virtual_mode": False,          # NEW
+                "virtual_balance": 0.0,            # NEW
+                "virtual_session_profit": 0.0      # NEW
             }
 
             caption_text = (
@@ -872,11 +880,14 @@ async def auto_bet_loop(user_tg_id, message: types.Message):
     api_error_count = 0 
     
     session = active_sessions[user_tg_id]
-    site = session["site"]
-    token = session["token"]
-    config = SITE_CONFIGS.get(site)
-    balance_url = f"{config['api_url']}/GetBalance"
-    bal_headers = get_headers(site, token)
+    is_virtual = session.get("is_virtual_mode", False)
+    
+    if not is_virtual:
+        site = session["site"]
+        token = session["token"]
+        config = SITE_CONFIGS.get(site)
+        balance_url = f"{config['api_url']}/GetBalance"
+        bal_headers = get_headers(site, token)
 
     while active_sessions.get(user_tg_id, {}).get("is_auto_betting", False):
         try:
@@ -944,17 +955,20 @@ async def auto_bet_loop(user_tg_id, message: types.Message):
                     if step >= len(sequence): step = 0
                     current_amount = sequence[step]
 
-                    # Checking real balance before bet
-                    current_bal_val = 0.0
-                    async with aiohttp.ClientSession() as http_session:
-                        async with http_session.post(balance_url, headers=bal_headers, json=get_signed_payload({'language': 7})) as resp:
-                            bal_res = await resp.json()
-                            if bal_res.get("code") == 0:
-                                data_field = bal_res.get("data")
-                                if isinstance(data_field, dict):
-                                    current_bal_val = float(data_field.get("balance", data_field.get("amount", 0.0)))
-                                else:
-                                    current_bal_val = float(data_field)
+                    # Check Balance (Real or Virtual)
+                    if is_virtual:
+                        current_bal_val = session.get("virtual_balance", 0.0)
+                    else:
+                        current_bal_val = 0.0
+                        async with aiohttp.ClientSession() as http_session:
+                            async with http_session.post(balance_url, headers=bal_headers, json=get_signed_payload({'language': 7})) as resp:
+                                bal_res = await resp.json()
+                                if bal_res.get("code") == 0:
+                                    data_field = bal_res.get("data")
+                                    if isinstance(data_field, dict):
+                                        current_bal_val = float(data_field.get("balance", data_field.get("amount", 0.0)))
+                                    else:
+                                        current_bal_val = float(data_field)
                     
                     if current_bal_val < current_amount:
                         await message.answer(f"⚠️ <b>လက်ကျန်ငွေ မလုံလောက်တော့ပါ။</b>\nလိုအပ်သောငွေ: {current_amount} Ks\nလက်ကျန်: {current_bal_val:,.2f} Ks\n🛑 Auto Bet ကို ရပ်နားလိုက်ပါသည်။")
@@ -972,16 +986,50 @@ async def auto_bet_loop(user_tg_id, message: types.Message):
                     last_betted_issue = current_issue
                     await asyncio.sleep(7) 
 
-                    success = await place_auto_bet(user_tg_id, current_issue, predicted_bet, current_amount, silent=True)
+                    # Place Bet (Real or Virtual)
+                    if is_virtual:
+                        # Virtual Bet: Simulate result
+                        actual_result = await get_latest_game_result(current_issue, user_tg_id)
+                        # If no real result, simulate
+                        if actual_result == "? | ?":
+                            # Simulate random result (for virtual mode testing)
+                            simulated_num = random.randint(0, 9)
+                            simulated_size = "BIG" if simulated_num >= 5 else "SMALL"
+                            actual_result = f"{simulated_num} | {simulated_size}"
+                        # Virtual Balance Update will happen below
+                    else:
+                        success = await place_auto_bet(user_tg_id, current_issue, predicted_bet, current_amount, silent=True)
+                        if not success:
+                            await asyncio.sleep(5)
+                            continue
                     
-                    if success:
+                    # Wait for result
+                    if not is_virtual:
                         actual_result = "? | ?"
                         for _ in range(20): 
                             if not active_sessions.get(user_tg_id, {}).get("is_auto_betting", False): break 
                             await asyncio.sleep(2)
                             actual_result = await get_latest_game_result(current_issue, user_tg_id)
                             if actual_result != "? | ?": break 
-                        
+                    
+                    # Update Balance (Real or Virtual)
+                    if is_virtual:
+                        new_bal_val = session.get("virtual_balance", 0.0)
+                        # Simulate profit/loss
+                        try:
+                            actual_size = actual_result.split(" | ")[1].strip().lower()
+                            if predicted_bet.lower() == actual_size:
+                                profit_amount = current_amount * 0.96
+                                session["virtual_balance"] += profit_amount
+                                session["virtual_session_profit"] += profit_amount
+                            else:
+                                session["virtual_balance"] -= current_amount
+                                session["virtual_session_profit"] -= current_amount
+                            new_bal_val = session["virtual_balance"]
+                            await db.update_virtual_balance(user_tg_id, new_bal_val)
+                        except Exception:
+                            pass
+                    else:
                         new_bal_val = 0.0
                         async with aiohttp.ClientSession() as http_session:
                             async with http_session.post(balance_url, headers=bal_headers, json=get_signed_payload({'language': 7})) as resp:
@@ -993,52 +1041,60 @@ async def auto_bet_loop(user_tg_id, message: types.Message):
                                     else:
                                         new_bal_val = float(data_field)
 
-                        try:
-                            actual_size = actual_result.split(" | ")[1].strip().lower() 
-                            
-                            if predicted_bet.lower() == actual_size:
-                                profit_amount = current_amount * 0.96
-                                status_title = f"{E_SETTING} <b>WIN</b> {E_CROWN} +{profit_amount:.2f} Ks"
-                                active_sessions[user_tg_id]["session_profit"] += profit_amount
-                                active_sessions[user_tg_id]["current_bet_step"] = 0 
-                                active_sessions[user_tg_id]["current_misses"] = 0 
-                            elif actual_size == "?": 
-                                status_title = f"⚙️ <b>DRAW</b> (Pending)"
+                    try:
+                        actual_size = actual_result.split(" | ")[1].strip().lower() 
+                        
+                        if predicted_bet.lower() == actual_size:
+                            profit_amount = current_amount * 0.96
+                            status_title = f"{E_SETTING} <b>WIN</b> {E_CROWN} +{profit_amount:.2f} Ks"
+                            if is_virtual:
+                                session["virtual_session_profit"] += profit_amount
                             else:
-                                status_title = f"{E_SETTING} <b>LOSE</b> {E_LOSS} {current_amount:.2f} Ks"
+                                active_sessions[user_tg_id]["session_profit"] += profit_amount
+                            active_sessions[user_tg_id]["current_bet_step"] = 0 
+                            active_sessions[user_tg_id]["current_misses"] = 0 
+                        elif actual_size == "?": 
+                            status_title = f"⚙️ <b>DRAW</b> (Pending)"
+                        else:
+                            status_title = f"{E_SETTING} <b>LOSE</b> {E_LOSS} {current_amount:.2f} Ks"
+                            if is_virtual:
+                                session["virtual_session_profit"] -= current_amount
+                            else:
                                 active_sessions[user_tg_id]["session_profit"] -= current_amount
-                                active_sessions[user_tg_id]["current_bet_step"] = (step + 1) % len(sequence)
+                            active_sessions[user_tg_id]["current_bet_step"] = (step + 1) % len(sequence)
 
-                            # --- Custom Pattern ကို Step တိုးရန် ---
-                            if ai_name == "🛠️ Set Pattern" and actual_size != "?":
-                                pat = active_sessions[user_tg_id].get("custom_pattern", ["BIG"])
-                                current_c_step = active_sessions[user_tg_id].get("custom_pattern_step", 0)
-                                active_sessions[user_tg_id]["custom_pattern_step"] = (current_c_step + 1) % len(pat)
-                                
+                        # --- Custom Pattern ကို Step တိုးရန် ---
+                        if ai_name == "🛠️ Set Pattern" and actual_size != "?":
+                            pat = active_sessions[user_tg_id].get("custom_pattern", ["BIG"])
+                            current_c_step = active_sessions[user_tg_id].get("custom_pattern_step", 0)
+                            active_sessions[user_tg_id]["custom_pattern_step"] = (current_c_step + 1) % len(pat)
+                            
+                        if is_virtual:
+                            current_profit = session.get("virtual_session_profit", 0.0)
+                        else:
                             current_profit = active_sessions[user_tg_id].get("session_profit", 0.0)
-                            profit_display = f"+{current_profit:,.2f} Ks" if current_profit > 0 else f"{current_profit:,.2f} Ks"
-                            
-                            await message.answer(
-                                "<blockquote>"
-                                f"{status_title}\n"
-                                "───────────────\n"
-                                f"{E_GRID} WINGO_30S : <code>{current_issue}</code>\n"
-                                f"{E_GRID} Result : <code>{actual_result}</code>\n"
-                                f"{E_EDIT} Balance : K{new_bal_val:,.2f}\n"
-                                f"{E_EDIT} Total Profit : {profit_display}"
-                                "</blockquote>"
-                            )
+                        profit_display = f"+{current_profit:,.2f} Ks" if current_profit > 0 else f"{current_profit:,.2f} Ks"
+                        
+                        await message.answer(
+                            "<blockquote>"
+                            f"{status_title}\n"
+                            "───────────────\n"
+                            f"{E_GRID} WINGO_30S : <code>{current_issue}</code>\n"
+                            f"{E_GRID} Result : <code>{actual_result}</code>\n"
+                            f"{E_EDIT} Balance : K{new_bal_val:,.2f}\n"
+                            f"{E_EDIT} Total Profit : {profit_display}"
+                            "</blockquote>"
+                        )
 
+                        if not is_virtual:
                             await db.update_user_balance(user_tg_id, f"{new_bal_val:.2f} Ks")
-                            
-                            profit_target = active_sessions[user_tg_id].get("profit_target", 0)
-                            if profit_target > 0 and current_profit >= profit_target:
-                                await message.answer(f"🎉 <b>Target ပြည့်သွားပါပြီ! ({profit_display})</b>\nAuto Bet ကို အလိုအလျောက် ရပ်နားလိုက်ပါသည်။")
-                                active_sessions[user_tg_id]["is_auto_betting"] = False
-                                break
-                        except Exception: pass
-                    else: 
-                        await asyncio.sleep(5) 
+                        
+                        profit_target = active_sessions[user_tg_id].get("profit_target", 0)
+                        if profit_target > 0 and current_profit >= profit_target:
+                            await message.answer(f"🎉 <b>Target ပြည့်သွားပါပြီ! ({profit_display})</b>\nAuto Bet ကို အလိုအလျောက် ရပ်နားလိုက်ပါသည်။")
+                            active_sessions[user_tg_id]["is_auto_betting"] = False
+                            break
+                    except Exception: pass
                 else: 
                     await asyncio.sleep(2) 
             else:
@@ -1125,7 +1181,7 @@ async def process_custom_pattern(message: types.Message, state: FSMContext):
     
     await message.answer(f"✅ <b>Pattern သတ်မှတ်ပြီးပါပြီ:</b> <code>{raw_pattern}</code>\n\n🎯 <b>မှတ်ချက်:</b> အပြင်ရလဒ် <b>{trigger}</b> ထွက်ပေါ်ပြီးမှသာ ပထမဆုံးအကွက် ({pattern_list[0]}) ကို စတင်လောင်းပါမည်။", reply_markup=get_logged_in_keyboard())
 
-@dp.message(F.text == "🔙 ပင်မမီနူးသို့")
+@dp.message(F.text == "ပင်မမီနူးသို့")
 async def back_to_main(message: types.Message):
     await message.answer("ပင်မမီနူးသို့ ရောက်ရှိပါပြီ။", reply_markup=get_logged_in_keyboard())
 
@@ -1180,20 +1236,30 @@ async def btn_status(message: types.Message):
 
     session = active_sessions[user_tg_id]
     is_auto = "Running 🟢" if session.get("is_auto_betting") else "Stopped 🔴"
+    is_virtual = session.get("is_virtual_mode", False)
     current_seq = session.get("bet_sequence", [10])
     current_step = session.get("current_bet_step", 0)
-    profit = session.get("session_profit", 0.0)
+    
+    if is_virtual:
+        profit = session.get("virtual_session_profit", 0.0)
+        balance = session.get("virtual_balance", 0.0)
+    else:
+        profit = session.get("session_profit", 0.0)
+        balance = session.get("start_balance", 0.0)
+    
     profit_str = f"+{profit:g} Ks" if profit >= 0 else f"{profit:g} Ks"
 
     status_text = (
         "📊 <b>Bot Status</b>\n"
         "━━━━━━━━━━━━━━━\n"
         f"🌐 <b>Active Site:</b> {session.get('site')}\n"
+        f"🕹️ <b>Mode:</b> {'Virtual' if is_virtual else 'Real'}\n"
         f"🤖 <b>Auto-Bet State:</b> {is_auto}\n"
         f"🧠 <b>Active AI Mode:</b> {session.get('ai_mode')}\n"
         f"⚙️ <b>Bet Sequence:</b> <code>{'-'.join(map(str, current_seq))}</code>\n"
         f"📍 <b>Current Step:</b> {current_step + 1}/{len(current_seq)} ({current_seq[current_step]} Ks)\n"
         f"🎯 <b>Profit Target:</b> {session.get('profit_target', 0)} Ks\n"
+        f"💰 <b>Balance:</b> {balance:,.2f} Ks\n"
         f"📈 <b>Total Profit:</b> {profit_str}\n"
     )
     await message.answer(status_text)
@@ -1208,29 +1274,35 @@ async def check_balance(message: types.Message, state: FSMContext):
         
     loading_msg = await message.answer("🔄 <b>လက်ကျန်ငွေ (Balance) ကို စစ်ဆေးနေပါသည်...</b>")
     session = active_sessions[user_tg_id]
+    is_virtual = session.get("is_virtual_mode", False)
     
     try:
-        config = SITE_CONFIGS.get(session["site"])
-        balance_url = f"{config['api_url']}/GetBalance"
-        
-        signed_bal_payload = get_signed_payload({'language': 7})
-        bal_headers = get_headers(session["site"], session["token"])
-        
-        balance_text = "0.00 Ks"
-        async with aiohttp.ClientSession() as http_session:
-            async with http_session.post(balance_url, headers=bal_headers, json=signed_bal_payload) as resp:
-                bal_res = await resp.json()
-                if bal_res.get("code") == 0:
-                    data_field = bal_res.get("data")
-                    if isinstance(data_field, dict):
-                        balance_val = data_field.get("balance", data_field.get("amount", 0.0))
-                    else:
-                        balance_val = data_field
-                        
-                    balance_text = f"{float(balance_val):.2f} Ks"
+        if is_virtual:
+            balance_val = session.get("virtual_balance", 0.0)
+            balance_text = f"{balance_val:,.2f} Ks"
+        else:
+            config = SITE_CONFIGS.get(session["site"])
+            balance_url = f"{config['api_url']}/GetBalance"
+            
+            signed_bal_payload = get_signed_payload({'language': 7})
+            bal_headers = get_headers(session["site"], session["token"])
+            
+            balance_text = "0.00 Ks"
+            async with aiohttp.ClientSession() as http_session:
+                async with http_session.post(balance_url, headers=bal_headers, json=signed_bal_payload) as resp:
+                    bal_res = await resp.json()
+                    if bal_res.get("code") == 0:
+                        data_field = bal_res.get("data")
+                        if isinstance(data_field, dict):
+                            balance_val = data_field.get("balance", data_field.get("amount", 0.0))
+                        else:
+                            balance_val = data_field
+                            
+                        balance_text = f"{float(balance_val):.2f} Ks"
 
         await state.update_data(balance=balance_text)
-        await db.update_user_balance(user_tg_id, balance_text)
+        if not is_virtual:
+            await db.update_user_balance(user_tg_id, balance_text)
 
         await loading_msg.delete()
         await message.answer(f"💰 <b>သင့်ရဲ့ လက်ရှိ လက်ကျန်ငွေ:</b> {balance_text}", reply_markup=get_logged_in_keyboard())
@@ -1272,7 +1344,7 @@ async def cmd_pro_ai_menu(message: types.Message):
     if message.from_user.id not in active_sessions: return await message.answer("⚠️ Login ဝင်ပေးပါ။")
     
     text = (
-        "👑 <b>Pro AI Features (Advanced Machine Learning)</b>\n"
+        "Pro AI Features (Advanced Machine Learning)\n"
         "━━━━━━━━━━━━━━━\n"
         "အောက်ပါ အဆင့်မြင့် AI/ML Algorithm များကို သင်စိတ်ကြိုက် ရွေးချယ်အသုံးပြုနိုင်ပါသည်။\n\n"
         "<i>(မှတ်ချက် - ထွက်ပေါ်ခဲ့သော Pattern များကို သင်္ချာသီအိုရီများဖြင့် တွက်ချက်ထားခြင်းဖြစ်ပါသည်။)</i>"
@@ -1287,6 +1359,88 @@ async def cmd_back_to_ai_menu(message: types.Message):
 @dp.message(F.text == TEXT_GAMES)
 async def games(message: types.Message):
     await message.answer("🎮 <b>Game ရွေးချယ်ရန်:</b>\nWin Go 30s ကို ရွေးချယ်ထားပါသည်။", reply_markup=get_main_keyboard())
+
+# ==========================================================
+# 🧪 Virtual Mode Handlers (NEW)
+# ==========================================================
+@dp.message(F.text == TEXT_VIRTUAL_MODE)
+async def cmd_virtual_mode(message: types.Message, state: FSMContext):
+    user_tg_id = message.from_user.id
+    if user_tg_id not in active_sessions:
+        return await message.answer("⚠️ Login ဝင်ပေးပါ။")
+    
+    # Check if already in virtual mode
+    if active_sessions[user_tg_id].get("is_virtual_mode", False):
+        await message.answer("✅ သင်သည် Virtual Mode တွင် ရှိနေပြီးဖြစ်ပါသည်။", reply_markup=get_logged_in_keyboard())
+        return
+    
+    # Ask for virtual balance
+    await state.set_state(LoginForm.enter_virtual_balance)
+    await message.answer(
+        "🧪 <b>Virtual Mode ကို စတင်ရန်</b>\n\n"
+        "သင်စမ်းသပ်လိုသော Virtual Balance ကို ရိုက်ထည့်ပါ။\n"
+        "ဥပမာ: <code>10000</code> (10,000 Ks)\n\n"
+        "<i>Virtual Mode တွင် API မှ ရလဒ်များကို အသုံးပြု၍ စမ်းသပ်နိုင်ပြီး၊\n"
+        "အမှန်တကယ် ငွေကြေးများ ထိခိုက်မှုမရှိပါ။</i>",
+        reply_markup=get_cancel_keyboard()
+    )
+
+@dp.message(LoginForm.enter_virtual_balance)
+async def process_virtual_balance(message: types.Message, state: FSMContext):
+    if message.text.lower() == 'cancel':
+        await state.set_state(LoginForm.main_menu)
+        return await message.answer("❌ Virtual Mode ကို မစတင်တော့ပါ။", reply_markup=get_logged_in_keyboard())
+    
+    try:
+        virtual_balance = float(message.text.replace(",", ""))
+        if virtual_balance <= 0:
+            raise ValueError
+        
+        user_tg_id = message.from_user.id
+        session = active_sessions[user_tg_id]
+        
+        # Set virtual mode
+        session["is_virtual_mode"] = True
+        session["virtual_balance"] = virtual_balance
+        session["virtual_session_profit"] = 0.0
+        session["start_balance"] = virtual_balance
+        
+        # Save to database
+        await db.set_virtual_balance(user_tg_id, virtual_balance)
+        
+        await state.set_state(LoginForm.main_menu)
+        await message.answer(
+            f"🧪 <b>Virtual Mode စတင်ပြီးပါပြီ!</b>\n\n"
+            f"💰 Virtual Balance: <b>{virtual_balance:,.2f} Ks</b>\n"
+            f"📊 AI Prediction များကို အသုံးပြု၍ စမ်းသပ်နိုင်ပါသည်။\n\n"
+            f"<i>Real Mode သို့ ပြန်သွားရန် 'Real Mode' ကို နှိပ်ပါ။</i>",
+            reply_markup=get_logged_in_keyboard()
+        )
+        
+    except ValueError:
+        await message.answer("❌ မှန်ကန်သော ဂဏန်းတစ်ခုကို ရိုက်ထည့်ပါ။\nဥပမာ: <code>10000</code>", reply_markup=get_cancel_keyboard())
+
+@dp.message(F.text == TEXT_REAL_MODE)
+async def cmd_real_mode(message: types.Message):
+    user_tg_id = message.from_user.id
+    if user_tg_id not in active_sessions:
+        return await message.answer("⚠️ Login ဝင်ပေးပါ။")
+    
+    if not active_sessions[user_tg_id].get("is_virtual_mode", False):
+        await message.answer("✅ သင်သည် Real Mode တွင် ရှိနေပြီးဖြစ်ပါသည်။", reply_markup=get_logged_in_keyboard())
+        return
+    
+    # Switch to real mode
+    active_sessions[user_tg_id]["is_virtual_mode"] = False
+    active_sessions[user_tg_id]["session_profit"] = 0.0
+    active_sessions[user_tg_id]["start_balance"] = extract_balance(active_sessions[user_tg_id].get("balance", "0.00 Ks"))
+    
+    await message.answer(
+        "🔴 <b>Real Mode သို့ ပြန်လည်ရောက်ရှိပါပြီ။</b>\n\n"
+        "အမှန်တကယ် ငွေကြေးဖြင့် ကစားနိုင်ပါသည်။\n"
+        "<i>Virtual Mode သို့ ပြန်သွားရန် 'Virtual Mode' ကို နှိပ်ပါ။</i>",
+        reply_markup=get_logged_in_keyboard()
+    )
 
 # ==========================================================
 # 🚀 Main Bot Loop
