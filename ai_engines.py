@@ -63,6 +63,7 @@ AI_MODE_EMOJIS = {
     "ML Style AI":       "6190369920304289234",
     "Circle Rnd":        "5226711870492126219",
     "Custom Pattern":    "6300853298249336390",
+    "AI Auto Swap":      "5868665489092263539",
 }
 
 # ==========================================================
@@ -634,6 +635,7 @@ def ensemble_predict(history_docs):
         momentum_predict, monte_carlo_predict, neural_pattern_predict,
         quick_reversal_predict, wave_analysis_predict, chaos_theory_predict,
         bayesian_predict, markov_chain_predict, ml_style_predict,
+        auto_swap_predict,
     ]
     big_w = small_w = 0.0
     big_n = small_n = 0
@@ -825,6 +827,40 @@ def custom_pattern_predict(history_docs, user_pattern="B"):
     return full, f"🛠️ {full} (Custom Pattern)", 100.0, "Custom Pattern"
 
 
+# ============================================================
+# 19. AI Auto Swap  —  4-Pattern Recognition
+# ============================================================
+def auto_swap_predict(history_docs):
+    if len(history_docs) < 4:
+        return "BIG", f"🔄 BIG (အကြီး) 🔴", 55.0, "🔄 Auto Swap: Data စုဆောင်းဆဲ..."
+
+    docs = list(reversed(history_docs))
+    # နောက်ဆုံးထွက်ခဲ့တဲ့ ၄ ပွဲရဲ့ ရလဒ်များကို B နဲ့ S အဖြစ် ပြောင်းယူခြင်း
+    recent = [d.get('size', 'BIG')[0] for d in docs[-4:]]
+    recent_str = "".join(recent)
+
+    # Auto Swap Rules (ထွက်ခဲ့တဲ့ ရလဒ် ၄ ခုကို ကြည့်ပြီး နောက်တစ်ကွက် ဆုံးဖြတ်ခြင်း)
+    pattern_map = {
+        "BBBB": "B", "SSSS": "S",       # Streak လာနေလျှင် (၄ လုံးဆက်တူလျှင်)
+        "BSBS": "B", "SBSB": "S",       # Alternating (တစ်လှည့်စီ လာနေလျှင်)
+        "BBSS": "B", "SSBB": "S",       # Pairs (နှစ်လုံးစီ လာနေလျှင်)
+        "BSSB": "B", "SBBS": "S",       # Sandwich (အစွန်တူ အလယ်တူ လာနေလျှင်)
+        "BBBS": "S", "SSSB": "B",       # ၃ လုံးဆက်ပြီး ပြတ်သွားလျှင် ပြတ်တဲ့ဘက်ကို လိုက်မည်
+        "BSSS": "S", "SBBB": "B",       # ၁ လုံးပြီး ၃ လုံးဆက်လာလျှင် ဆက်လိုက်မည်
+    }
+
+    # ပုံစံနဲ့ ကိုက်ညီတာရှိရင် ယူမည်၊ မရှိရင် နောက်ဆုံးထွက်ခဲ့တဲ့ဘက်ကိုပဲ Fallback အနေနဲ့ ပြန်လိုက်မည်
+    next_char = pattern_map.get(recent_str)
+    if not next_char:
+        next_char = recent_str[-1]
+
+    predicted = "BIG" if next_char == "B" else "SMALL"
+    burmese, dot = _label(predicted)
+    conf = 75.0 if recent_str in pattern_map else 60.0
+
+    return predicted, f"🔄 {predicted} ({burmese}) {dot}", conf, f"🔄 Auto Swap ({recent_str} → {predicted})"
+
+
 # ==========================================
 # 📊 AI Modes Dictionary
 # ==========================================
@@ -847,6 +883,7 @@ AI_MODE_NAMES = {
     "ml_style":         "ML Style AI",
     "circle_rnd":       "Circle Rnd",
     "custom_pattern":   "🛠️ Set Pattern",
+    "auto_swap":        "AI Auto Swap",
 }
 
 AI_MODES = {
@@ -868,6 +905,7 @@ AI_MODES = {
     "ml_style":         {"func": ml_style_predict,          "name": AI_MODE_NAMES["ml_style"],        "desc": "8-Feature Weighted"},
     "circle_rnd":       {"func": circle_rnd_predict,        "name": AI_MODE_NAMES["circle_rnd"],      "desc": "Random Wheel Spin"},
     "custom_pattern":   {"func": custom_pattern_predict,    "name": AI_MODE_NAMES["custom_pattern"],  "desc": "User စိတ်ကြိုက် Pattern"},
+    "auto_swap":        {"func": auto_swap_predict,         "name": AI_MODE_NAMES["auto_swap"],       "desc": "4-Pattern Auto Change"},
 }
 
 def get_prediction(history_docs, mode, user_pattern=None):
