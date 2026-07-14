@@ -1267,7 +1267,7 @@ async def logout(message: types.Message, state: FSMContext):
     await message.answer("👋 အကောင့်ထွက်ပြီးပါပြီ။", reply_markup=get_main_keyboard())
 
 
-@dp.message(F.text == "👑 Pro AI Features")
+@dp.message(F.text == "Pro AI Features")
 async def cmd_pro_ai_menu(message: types.Message):
     if message.from_user.id not in active_sessions: return await message.answer("⚠️ Login ဝင်ပေးပါ။")
     
@@ -1279,10 +1279,10 @@ async def cmd_pro_ai_menu(message: types.Message):
     )
     await message.answer(text, reply_markup=get_pro_ai_mode_keyboard())
 
-@dp.message(F.text == "🔙 AI Menu သို့ပြန်သွားရန်")
+@dp.message(F.text == "AI Menu သို့ပြန်သွားရန်")
 async def cmd_back_to_ai_menu(message: types.Message):
     if message.from_user.id not in active_sessions: return await message.answer("⚠️ Login ဝင်ပေးပါ။")
-    await message.answer("🤖 <b>AI Mode ရွေးချယ်ရန်:</b>", reply_markup=get_ai_mode_keyboard())
+    await message.answer("AI Mode ရွေးချယ်ရန်", reply_markup=get_ai_mode_keyboard())
 
 @dp.message(F.text == TEXT_GAMES)
 async def games(message: types.Message):
