@@ -653,14 +653,17 @@ async def get_ai_prediction(user_tg_id):
                 step = session_data.get("custom_pattern_step", 0)
                 target_bet = pat[step]
 
-                # Pattern ရဲ့ အစ (Step 0) ဖြစ်နေလျှင် ဆန့်ကျင်ဘက် ရလဒ်ထွက်/မထွက် စစ်ဆေးခြင်း
-                if step == 0:
+                # ပထမဆုံးတစ်ကြိမ်သာ Trigger စစ်ဆေးမည် (custom_pattern_started = False ဖြစ်မှသာ)
+                if not active_sessions.get(user_tg_id, {}).get("custom_pattern_started", False):
                     last_actual_num = int(records[0]['number'])
                     last_actual_size = "BIG" if last_actual_num >= 5 else "SMALL"
                     trigger = "SMALL" if target_bet == "BIG" else "BIG"
 
                     if last_actual_size != trigger:
                         return "wait", 100, next_issue, user_ai_name
+
+                    # Trigger တွေ့ပြီ! ဒီတစ်ခါတည်း flag ကို True သတ်မှတ်မည်
+                    active_sessions[user_tg_id]["custom_pattern_started"] = True
 
                 return target_bet.lower(), 100, next_issue, user_ai_name
             else:
@@ -796,7 +799,8 @@ async def prediction_broadcast_loop(user_tg_id, message: types.Message):
                     if actual_result != "? | ?": break
                 
                 if actual_result != "? | ?":
-                    if predicted_bet.lower() == actual_result.split(" | ")[1].strip().lower():
+                    actual_size = actual_result.split(" | ")[1].strip().lower()
+                    if predicted_bet.lower() == actual_size:
                         status_text = f"{P_5}WIN{actual_result}"
                         active_sessions[user_tg_id]["current_win_streak"] += 1
                         active_sessions[user_tg_id]["current_lose_streak"] = 0
@@ -806,6 +810,12 @@ async def prediction_broadcast_loop(user_tg_id, message: types.Message):
                         active_sessions[user_tg_id]["current_lose_streak"] += 1
                         active_sessions[user_tg_id]["current_win_streak"] = 0
                         active_sessions[user_tg_id]["longest_lose_streak"] = max(active_sessions[user_tg_id]["longest_lose_streak"], active_sessions[user_tg_id]["current_lose_streak"])
+
+                    # --- Custom Pattern Step တိုးမည် ---
+                    if ai_name == "🛠️ Set Pattern":
+                        pat = active_sessions[user_tg_id].get("custom_pattern", ["BIG"])
+                        current_c_step = active_sessions[user_tg_id].get("custom_pattern_step", 0)
+                        active_sessions[user_tg_id]["custom_pattern_step"] = (current_c_step + 1) % len(pat)
                 else:
                     status_text = "⚖️ <b>DRAW (Timeout)</b>"
                     
@@ -1092,6 +1102,7 @@ async def process_custom_pattern(message: types.Message, state: FSMContext):
     if user_tg_id in active_sessions:
         active_sessions[user_tg_id]["custom_pattern"] = pattern_list
         active_sessions[user_tg_id]["custom_pattern_step"] = 0
+        active_sessions[user_tg_id]["custom_pattern_started"] = False  # Trigger ကို ထပ်မံစောင့်ရန် Reset
         active_sessions[user_tg_id]["ai_mode"] = "🛠️ Set Pattern"
 
     await db.update_user_ai_mode(user_tg_id, "🛠️ Set Pattern")
