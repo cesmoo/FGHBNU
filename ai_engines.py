@@ -1,4 +1,4 @@
-# ai_engines.py  ——  v2 Upgraded Algorithms
+# ai_engines.py  
 import numpy as np
 import time
 import random
@@ -923,3 +923,237 @@ def get_ai_mode_buttons():
         btn = KeyboardButton(text=mode_name, icon_custom_emoji_id=emoji_id, style="primary")
         buttons.append(btn)
     return buttons
+
+# ============================================================
+# 👑 PRO AI FEATURES (Advanced ML/DL Simulated Models)
+# ============================================================
+P_AI_PRO = '<tg-emoji emoji-id="5807868868886009920">👑</tg-emoji>'
+
+def pro_lstm_predict(history_docs):
+    """Long Short-Term Memory (LSTM) - Forget & Input Gates Simulation"""
+    if len(history_docs) < 15: return "BIG", f"🧠 LSTM (အကြီး) 🔴", 55.0, "🧠 LSTM: Data စုဆောင်းဆဲ..."
+    all_hist = [d.get('size', 'BIG') for d in reversed(history_docs)]
+    
+    # Forget Gate (f_t): Recent volatility
+    recent = all_hist[-5:]
+    f_t = sum(1 for i in range(1, 5) if recent[i] != recent[i-1]) / 4.0
+    
+    # Input Gate (i_t): Trend strength
+    trend = all_hist[-10:].count("BIG") / 10.0
+    i_t = abs(trend - 0.5) * 2 
+    
+    # Cell State (c_t): Combined memory
+    c_t = (1 - f_t) * (1 if all_hist[-1] == "BIG" else -1) + i_t * (1 if trend > 0.5 else -1)
+    
+    pred = "BIG" if c_t > 0 else "SMALL"
+    burmese, dot = _label(pred)
+    conf = min(60 + abs(c_t) * 20, 88)
+    return pred, f"🧠 LSTM {pred} ({burmese}) {dot}", conf, f"🧠 LSTM Cell State: {c_t:.2f}"
+
+def pro_gru_predict(history_docs):
+    """Gated Recurrent Unit (GRU) - Update & Reset Gates Simulation"""
+    if len(history_docs) < 10: return "BIG", f"⚡ GRU (အကြီး) 🔴", 55.0, "⚡ GRU: Data စုဆောင်းဆဲ..."
+    all_hist = [1 if d.get('size', 'BIG') == "BIG" else 0 for d in reversed(history_docs)]
+    
+    h_prev = 0.5
+    for x_t in all_hist[-10:]:
+        z_t = 0.2 * x_t + 0.8 * h_prev  # Update Gate
+        r_t = 0.5                       # Reset Gate (Constant for sim)
+        h_tilde = x_t + r_t * h_prev
+        h_prev = (1 - z_t) * h_prev + z_t * h_tilde
+        
+    pred = "BIG" if h_prev > 0.5 else "SMALL"
+    burmese, dot = _label(pred)
+    conf = min(50 + abs(h_prev - 0.5) * 60, 87)
+    return pred, f"⚡ GRU {pred} ({burmese}) {dot}", conf, f"⚡ GRU Hidden State: {h_prev:.2f}"
+
+def pro_xgboost_predict(history_docs):
+    """XGBoost - Gradient Boosting Tree Simulation"""
+    if len(history_docs) < 12: return "BIG", f"🌲 XGBoost (အကြီး) 🔴", 55.0, "🌲 XGBoost: Data စုဆောင်းဆဲ..."
+    all_hist = [d.get('size', 'BIG') for d in reversed(history_docs)]
+    
+    # Tree 1: Short Trend
+    t1 = 1 if all_hist[-3:].count("BIG") >= 2 else -1
+    # Tree 2: Alternation Correction (Boosting weight if T1 is wrong)
+    t2 = -1 if all_hist[-1] != all_hist[-2] else 1
+    # Tree 3: Long Trend
+    t3 = 1 if all_hist[-10:].count("BIG") >= 5 else -1
+    
+    # Weighted Sum (Boosting)
+    score = (t1 * 0.5) + (t2 * 0.3) + (t3 * 0.2)
+    pred = "BIG" if score > 0 else "SMALL"
+    burmese, dot = _label(pred)
+    conf = min(60 + abs(score) * 25, 90)
+    return pred, f"🌲 XGB {pred} ({burmese}) {dot}", conf, f"🌲 XGBoost Score: {score:.2f}"
+
+def pro_lightgbm_predict(history_docs):
+    """LightGBM - Leaf-wise Histogram Binning"""
+    if len(history_docs) < 15: return "BIG", f"🌿 LightGBM (အကြီး) 🔴", 55.0, "🌿 LightGBM: Data စုဆောင်းဆဲ..."
+    all_hist = [d.get('size', 'BIG') for d in reversed(history_docs)]
+    
+    # Histogram Binning (Leaf-wise growth)
+    bins = {"BB": 0, "BS": 0, "SB": 0, "SS": 0}
+    for i in range(1, len(all_hist)-1):
+        leaf = all_hist[i-1][0] + all_hist[i][0]
+        if all_hist[i+1] == "BIG": bins[leaf] += 1
+        else: bins[leaf] -= 1
+        
+    current_leaf = all_hist[-2][0] + all_hist[-1][0]
+    leaf_score = bins.get(current_leaf, 0)
+    
+    pred = "BIG" if leaf_score >= 0 else "SMALL"
+    burmese, dot = _label(pred)
+    conf = min(55 + abs(leaf_score) * 5, 85)
+    return pred, f"🌿 LGBM {pred} ({burmese}) {dot}", conf, f"🌿 LGBM Leaf [{current_leaf}] = {leaf_score}"
+
+def pro_rl_predict(history_docs):
+    """Reinforcement Learning (Q-Learning Simulation)"""
+    if len(history_docs) < 20: return "BIG", f"🎮 RL Agent (အကြီး) 🔴", 55.0, "🎮 RL: Data စုဆောင်းဆဲ..."
+    all_hist = [d.get('size', 'BIG') for d in reversed(history_docs)]
+    
+    # Q-Table Initialization: State = Last 2 results, Action = BIG/SMALL
+    q_table = {
+        "BB": {"BIG": 0, "SMALL": 0}, "BS": {"BIG": 0, "SMALL": 0},
+        "SB": {"BIG": 0, "SMALL": 0}, "SS": {"BIG": 0, "SMALL": 0}
+    }
+    
+    alpha, gamma = 0.1, 0.9 # Learning rate & Discount factor
+    
+    # Training Loop on History
+    for i in range(2, len(all_hist)-1):
+        state = all_hist[i-2][0] + all_hist[i-1][0]
+        actual_next = all_hist[i]
+        next_state = all_hist[i-1][0] + actual_next[0]
+        
+        # Reward: +1 if Agent's action would have been correct
+        for action in ["BIG", "SMALL"]:
+            reward = 1 if action == actual_next else -1
+            max_future_q = max(q_table[next_state].values())
+            # Q-Learning Equation Update
+            q_table[state][action] = q_table[state][action] + alpha * (reward + gamma * max_future_q - q_table[state][action])
+            
+    current_state = all_hist[-2][0] + all_hist[-1][0]
+    q_big = q_table[current_state]["BIG"]
+    q_small = q_table[current_state]["SMALL"]
+    
+    pred = "BIG" if q_big > q_small else "SMALL"
+    burmese, dot = _label(pred)
+    conf = min(60 + abs(q_big - q_small) * 15, 89)
+    return pred, f"🎮 RL {pred} ({burmese}) {dot}", conf, f"🎮 RL Q-Value (B:{q_big:.2f} S:{q_small:.2f})"
+
+def pro_ensemble_stacking_predict(history_docs):
+    """Ensemble Stacking (Meta-Model)"""
+    if len(history_docs) < 15: return "BIG", f"📚 Stacking (အကြီး) 🔴", 55.0, "📚 Stacking: Data စုဆောင်းဆဲ..."
+    
+    p_xgb, _, conf_xgb, _ = pro_xgboost_predict(history_docs)
+    p_lgb, _, conf_lgb, _ = pro_lightgbm_predict(history_docs)
+    p_lstm, _, conf_lstm, _ = pro_lstm_predict(history_docs)
+    
+    big_w = small_w = 0.0
+    for p, c in [(p_xgb, conf_xgb), (p_lgb, conf_lgb), (p_lstm, conf_lstm)]:
+        if p == "BIG": big_w += c
+        else: small_w += c
+        
+    pred = "BIG" if big_w > small_w else "SMALL"
+    burmese, dot = _label(pred)
+    conf = min(50 + (max(big_w, small_w) / (big_w + small_w)) * 40, 92)
+    return pred, f"📚 Stack {pred} ({burmese}) {dot}", conf, f"📚 Stacking Vote: {pred}"
+
+def pro_rolling_stats_predict(history_docs):
+    """Rolling Statistics (Z-Score & Std Dev)"""
+    import math
+    if len(history_docs) < 10: return "BIG", f"📈 Roll Stats (အကြီး) 🔴", 55.0, "📈 Stats: Data စုဆောင်းဆဲ..."
+    all_hist = [1 if d.get('size', 'BIG') == "BIG" else 0 for d in reversed(history_docs)]
+    
+    n = len(all_hist[-10:])
+    mean = sum(all_hist[-10:]) / n
+    variance = sum((x - mean) ** 2 for x in all_hist[-10:]) / n
+    std_dev = math.sqrt(variance) if variance > 0 else 0.01
+    
+    # Z-Score of the last element
+    z_score = (all_hist[-1] - mean) / std_dev
+    
+    # Mean Reversion: If Z-score is extremely high/low, predict opposite
+    if z_score > 1.0: pred = "SMALL"  # Too many BIGs
+    elif z_score < -1.0: pred = "BIG" # Too many SMALLs
+    else: pred = "BIG" if mean > 0.5 else "SMALL" # Follow trend
+    
+    burmese, dot = _label(pred)
+    conf = min(58 + abs(z_score) * 10, 83)
+    return pred, f"📈 Stats {pred} ({burmese}) {dot}", conf, f"📈 Z-Score: {z_score:.2f} (Mean Reversion)"
+
+def pro_entropy_predict(history_docs):
+    """Entropy Analysis (Shannon Entropy)"""
+    import math
+    if len(history_docs) < 10: return "BIG", f"🌀 Entropy (အကြီး) 🔴", 55.0, "🌀 Entropy: Data စုဆောင်းဆဲ..."
+    all_hist = [d.get('size', 'BIG') for d in reversed(history_docs)]
+    
+    recent = all_hist[-8:]
+    p_big = recent.count("BIG") / 8.0
+    p_small = 1 - p_big
+    
+    # Shannon Entropy H(X)
+    h = 0.0
+    if p_big > 0: h -= p_big * math.log2(p_big)
+    if p_small > 0: h -= p_small * math.log2(p_small)
+    
+    last = all_hist[-1]
+    if h > 0.9: # High Entropy (Chaos) -> Predict Alternation
+        pred = "SMALL" if last == "BIG" else "BIG"
+    else:       # Low Entropy (Order) -> Follow Streak
+        pred = last
+        
+    burmese, dot = _label(pred)
+    conf = min(60 + abs(0.5 - h) * 40, 85)
+    return pred, f"🌀 Entropy {pred} ({burmese}) {dot}", conf, f"🌀 Shannon H: {h:.2f}"
+
+def pro_streak_momentum_predict(history_docs):
+    """Streak Momentum (Velocity & Acceleration)"""
+    if len(history_docs) < 8: return "BIG", f"🚀 Momentum (အကြီး) 🔴", 55.0, "🚀 Momentum: Data စုဆောင်းဆဲ..."
+    all_hist = [d.get('size', 'BIG') for d in reversed(history_docs)]
+    
+    _, current_streak = _streak(all_hist)
+    _, prev_streak = _streak(all_hist[:-current_streak]) if current_streak < len(all_hist) else ("BIG", 0)
+    
+    # Delta Velocity
+    dv = current_streak - prev_streak
+    
+    if dv > 0: # Accelerating streak
+        pred = all_hist[-1] 
+    else:      # Decelerating streak -> Reversal expected
+        pred = "SMALL" if all_hist[-1] == "BIG" else "BIG"
+        
+    burmese, dot = _label(pred)
+    conf = min(60 + abs(dv) * 8, 86)
+    return pred, f"🚀 Momentum {pred} ({burmese}) {dot}", conf, f"🚀 Streak Δv: {dv}"
+
+# ============================================================
+# Dictionary များတွင် Update လုပ်ရန်
+# ============================================================
+PRO_AI_MODE_NAMES = {
+    "pro_lstm": "🧠 Pro LSTM",
+    "pro_gru": "⚡ Pro GRU",
+    "pro_xgb": "🌲 Pro XGBoost",
+    "pro_lgbm": "🌿 Pro LightGBM",
+    "pro_rl": "🎮 Pro RL Agent",
+    "pro_stacking": "📚 Pro Ensemble Stacking",
+    "pro_rolling": "📈 Pro Rolling Stats",
+    "pro_entropy": "🌀 Pro Entropy Analysis",
+    "pro_streak": "🚀 Pro Streak Momentum",
+}
+
+AI_MODE_NAMES.update(PRO_AI_MODE_NAMES)
+
+PRO_AI_MODES = {
+    "pro_lstm": {"func": pro_lstm_predict, "name": PRO_AI_MODE_NAMES["pro_lstm"], "desc": "Long Short-Term Memory"},
+    "pro_gru": {"func": pro_gru_predict, "name": PRO_AI_MODE_NAMES["pro_gru"], "desc": "Gated Recurrent Unit"},
+    "pro_xgb": {"func": pro_xgboost_predict, "name": PRO_AI_MODE_NAMES["pro_xgb"], "desc": "Gradient Boosting Tree"},
+    "pro_lgbm": {"func": pro_lightgbm_predict, "name": PRO_AI_MODE_NAMES["pro_lgbm"], "desc": "Leaf-wise Histogram Binning"},
+    "pro_rl": {"func": pro_rl_predict, "name": PRO_AI_MODE_NAMES["pro_rl"], "desc": "Q-Learning Algorithm"},
+    "pro_stacking": {"func": pro_ensemble_stacking_predict, "name": PRO_AI_MODE_NAMES["pro_stacking"], "desc": "Meta-Model Stacking"},
+    "pro_rolling": {"func": pro_rolling_stats_predict, "name": PRO_AI_MODE_NAMES["pro_rolling"], "desc": "Z-Score & Variance"},
+    "pro_entropy": {"func": pro_entropy_predict, "name": PRO_AI_MODE_NAMES["pro_entropy"], "desc": "Shannon Entropy Chaos Analysis"},
+    "pro_streak": {"func": pro_streak_momentum_predict, "name": PRO_AI_MODE_NAMES["pro_streak"], "desc": "Streak Velocity"},
+}
+
+AI_MODES.update(PRO_AI_MODES)
