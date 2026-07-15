@@ -12,6 +12,10 @@ client = AsyncIOMotorClient(MONGO_URI)
 db = client["autobet_db"]
 users_collection = db["users"]
 keys_collection = db["keys"] # Key များသိမ်းရန် Collection အသစ်
+allowed_uids_collection = db["allowed_uids"]
+
+# အသစ်ထည့်သွင်းထားသော AI States Collection (Persistent Memory အတွက်)
+ai_states_collection = db["ai_states"]
 
 # ==========================================
 # 👤 User Data Functions
@@ -46,8 +50,6 @@ async def update_user_ai_mode(user_id: int, ai_mode: str):
 # ==========================================
 # 🎮 Allowed Game UIDs (Key မလိုဘဲ သုံးခွင့်ပေးမည့်စာရင်း)
 # ==========================================
-allowed_uids_collection = db["allowed_uids"]
-
 async def add_allowed_uid(uid: str):
     """UID ကို ခွင့်ပြုစာရင်းထဲ ထည့်ရန်"""
     await allowed_uids_collection.update_one({"uid": uid}, {"$set": {"uid": uid}}, upsert=True)
@@ -124,3 +126,21 @@ async def update_virtual_balance(user_id: int, balance: float):
         {"$set": {"virtual_balance": balance}},
         upsert=True
     )
+
+# ==========================================
+# 🧠 AI State Functions (Persistent Memory)
+# ==========================================
+async def save_ai_state(user_id: int, model_name: str, state_data: dict):
+    """AI ၏ Q-Table သို့မဟုတ် အခြား မှတ်ဉာဏ်များကို DB တွင် သိမ်းရန်"""
+    await ai_states_collection.update_one(
+        {"user_id": user_id, "model_name": model_name},
+        {"$set": {"state_data": state_data}},
+        upsert=True
+    )
+
+async def get_ai_state(user_id: int, model_name: str) -> dict:
+    """သိမ်းဆည်းထားသော AI မှတ်ဉာဏ်ကို ပြန်ခေါ်ရန်"""
+    doc = await ai_states_collection.find_one({"user_id": user_id, "model_name": model_name})
+    if doc and "state_data" in doc:
+        return doc["state_data"]
+    return {}
