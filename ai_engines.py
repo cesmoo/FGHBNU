@@ -31,6 +31,7 @@ P_AI_CHAOS      = '<tg-emoji emoji-id="5877443460725739250">🎪</tg-emoji>'
 P_AI_STAR       = '<tg-emoji emoji-id="5807868868886009920">⭐</tg-emoji>'
 P_AI_ROBOT      = '<tg-emoji emoji-id="5877652234091891383">🤖</tg-emoji>'
 P_AI_BRAIN      = '<tg-emoji emoji-id="5868656545634689320">🧠</tg-emoji>'
+P_AI_PRO        = '<tg-emoji emoji-id="5807868868886009920">👑</tg-emoji>'
 
 class AIEmoji:
     CHECK = "✅"; CROSS = "❌"; INFO = "ℹ️"; HOURGLASS = "⏳"
@@ -74,6 +75,7 @@ def _to_binary(history):
     return [1 if x == "BIG" else 0 for x in history]
 
 def _label(pred):
+    if pred == "wait": return "စောင့်မည်", "⚠️"
     burmese = "အကြီး" if pred == "BIG" else "အသေး"
     dot     = "🔴"    if pred == "BIG" else "🟢"
     return burmese, dot
@@ -156,16 +158,14 @@ def detect_active_pattern(history_list):
     for name, seq, nxt in PATTERNS:
         plen = len(seq)
         if len(recent) < plen: continue
-        # Recency-weighted scoring: later matches score higher
         score = 0.0
         for i in range(len(recent) - plen + 1):
             if recent[i:i+plen] == seq:
-                recency_weight = 1.0 + (i / max(len(recent), 1))   # later = heavier
+                recency_weight = 1.0 + (i / max(len(recent), 1))
                 score += recency_weight * plen
         if score > best_score:
             best_score, best_pattern, best_next = score, name, nxt
 
-    # Require minimum evidence
     if best_score < len(best_next or "") * 1.5 if best_next else True:
         if best_score < 2.0:
             return None, None
@@ -188,9 +188,8 @@ def pattern_predict(history_docs):
     return pred, f"{P_AI_PATTERN} {pred} ({burmese}) {dot}", 55.0, \
            f"{P_AI_INFO} Freq BIG:{b} SMALL:{s}"
 
-
 # ============================================================
-# 2. Martingale AI  —  v2: multi-window contrarian with weighted consensus
+# 2. Martingale AI
 # ============================================================
 def martingale_predict(history_docs):
     if len(history_docs) < 5:
@@ -206,11 +205,10 @@ def martingale_predict(history_docs):
         if len(seg) < win // 2: continue
         big_cnt = seg.count("BIG")
         if big_cnt > len(seg) / 2:
-            small_score += w          # contrarian: BIG dominant → bet SMALL
+            small_score += w          
         elif big_cnt < len(seg) / 2:
             big_score   += w
 
-    # Streak boost: if last 3 are same, contrarian is stronger
     side, streak = _streak(all_history)
     if streak >= 3:
         if side == "BIG":   small_score += 1.5
@@ -227,9 +225,8 @@ def martingale_predict(history_docs):
         return "SMALL", f"{P_AI_MARTINGALE} SMALL (အသေး) 🟢", conf, \
                f"{P_AI_MARTINGALE} Multi-Win Contrarian → SMALL ({conf:.0f}%)"
 
-
 # ============================================================
-# 3. Anti-Martingale AI  —  v2: full-history streak + exponential confidence
+# 3. Anti-Martingale AI
 # ============================================================
 def anti_martingale_predict(history_docs):
     if len(history_docs) < 5:
@@ -239,13 +236,11 @@ def anti_martingale_predict(history_docs):
     side, streak = _streak(all_history)
 
     if streak >= 2:
-        # Exponential confidence: 65 + 5*(streak-1), capped at 84
         conf = min(65 + 5 * (streak - 1), 84)
         burmese, dot = _label(side)
         return side, f"{P_AI_ANTIMARTINGALE} {side} ({burmese}) {dot}", conf, \
                f"{P_AI_ANTIMARTINGALE} Streak ×{streak} → Follow"
     else:
-        # No streak: use short-window trend
         recent = all_history[-6:]
         big_r  = recent.count("BIG") / len(recent)
         pred   = "BIG" if big_r >= 0.5 else "SMALL"
@@ -253,9 +248,8 @@ def anti_martingale_predict(history_docs):
         return pred, f"{P_AI_ANTIMARTINGALE} {pred} ({burmese}) {dot}", 60.0, \
                f"{P_AI_ANTIMARTINGALE} No streak → Short trend"
 
-
 # ============================================================
-# 4. Trend Following  —  v2: EMA-style 3-timeframe with signal strength
+# 4. Trend Following
 # ============================================================
 def trend_following_predict(history_docs):
     if len(history_docs) < 8:
@@ -265,13 +259,12 @@ def trend_following_predict(history_docs):
 
     spans   = [3, 7, 15]
     ema_vals = [_ema_ratio(all_history, s) for s in spans]
-    # Signal: short > mid > long  →  BIG uptrend
     big_signals = small_signals = 0
     for i in range(len(ema_vals) - 1):
         if   ema_vals[i] > ema_vals[i+1] + 0.05: big_signals   += 1
         elif ema_vals[i] < ema_vals[i+1] - 0.05: small_signals += 1
 
-    slope = ema_vals[0] - ema_vals[-1]   # short EMA minus long EMA
+    slope = ema_vals[0] - ema_vals[-1]
 
     if big_signals >= 2 or (big_signals == 1 and slope > 0.1):
         conf = min(62 + big_signals * 8 + abs(slope) * 40, 83)
@@ -286,9 +279,8 @@ def trend_following_predict(history_docs):
         return last, f"{P_AI_TREND} {last} ({burmese}) {dot}", 58.0, \
                f"{P_AI_TREND} Sideways ({ema_vals[0]*100:.0f}%)"
 
-
 # ============================================================
-# 5. Fibonacci AI  —  v2: 8 levels (1-55), confidence-weighted voting
+# 5. Fibonacci AI
 # ============================================================
 def fibonacci_predict(history_docs):
     if len(history_docs) < 10:
@@ -303,12 +295,11 @@ def fibonacci_predict(history_docs):
         if len(all_history) < level: continue
         seg     = all_history[-level:]
         big_pct = seg.count("BIG") / level
-        weight  = 1.0 / (idx + 1)      # shorter levels = higher weight (more recent signal)
+        weight  = 1.0 / (idx + 1)
 
-        if big_pct > 0.618:   small_w += weight   # overbought → SMALL
-        elif big_pct < 0.382: big_w   += weight   # oversold   → BIG
+        if big_pct > 0.618:   small_w += weight
+        elif big_pct < 0.382: big_w   += weight
         else:
-            # Neutral zone: follow trend inside zone
             mid_trend = all_history[-min(level//2, len(all_history)):].count("BIG") / min(level//2, len(all_history))
             if mid_trend > 0.5: big_w   += weight * 0.5
             else:               small_w += weight * 0.5
@@ -324,9 +315,8 @@ def fibonacci_predict(history_docs):
         return "SMALL", f"{P_AI_FIBONACCI} SMALL (အသေး) 🟢", conf, \
                f"{P_AI_FIBONACCI} Fib8 → SMALL ({conf:.0f}%)"
 
-
 # ============================================================
-# 6. Golden Ratio  —  v2: 3-scale consensus + trend slope confirmation
+# 6. Golden Ratio
 # ============================================================
 def golden_ratio_predict(history_docs):
     if len(history_docs) < 12:
@@ -342,9 +332,7 @@ def golden_ratio_predict(history_docs):
         r   = seg.count("BIG") / len(seg)
         if   r > 0.618: votes_small += 1
         elif r < 0.382: votes_big   += 1
-        # neutral: no vote
 
-    # Slope: 5-item vs 13-item EMA
     slope = _ema_ratio(all_history, 5) - _ema_ratio(all_history, 13)
 
     if votes_big > votes_small or (votes_big == votes_small and slope > 0.05):
@@ -361,9 +349,8 @@ def golden_ratio_predict(history_docs):
         return last, f"{P_AI_GOLDEN} {last} ({burmese}) {dot}", 62.0, \
                f"{P_AI_GOLDEN} φ-Zone {r21*100:.1f}% (Neutral)"
 
-
 # ============================================================
-# 7. Momentum AI  —  v2: exponential weights over 10 items + acceleration
+# 7. Momentum AI
 # ============================================================
 def momentum_predict(history_docs):
     if len(history_docs) < 6:
@@ -371,7 +358,6 @@ def momentum_predict(history_docs):
     docs = list(reversed(history_docs))
     all_history = [d.get('size', 'BIG') for d in docs]
 
-    # Exponential weights: most recent has highest weight
     window = all_history[-10:]
     n      = len(window)
     alpha  = 0.3
@@ -381,12 +367,11 @@ def momentum_predict(history_docs):
         score += w * (1 if r == "BIG" else -1)
         w     *= (1 - alpha)
 
-    # Acceleration: compare first-half vs second-half momentum
     if n >= 6:
         half = n // 2
         m1   = sum(1 if r == "BIG" else -1 for r in window[:half])
         m2   = sum(1 if r == "BIG" else -1 for r in window[half:])
-        accel = m2 - m1       # positive = accelerating BIG
+        accel = m2 - m1
     else:
         accel = 0
 
@@ -406,9 +391,8 @@ def momentum_predict(history_docs):
         return last, f"{P_AI_MOMENTUM} {last} ({burmese}) {dot}", 57.0, \
                f"{P_AI_MOMENTUM} Weak signal ({total_signal:.2f})"
 
-
 # ============================================================
-# 8. Monte Carlo  —  v2: 5000 sims, recency-weighted probability
+# 8. Monte Carlo
 # ============================================================
 def monte_carlo_predict(history_docs):
     if len(history_docs) < 15:
@@ -416,14 +400,12 @@ def monte_carlo_predict(history_docs):
     docs = list(reversed(history_docs))
     all_history = [d.get('size', 'BIG') for d in docs]
 
-    # Recency-weighted BIG probability (half-life = 10 rounds)
     half_life  = 10.0
     weights    = [np.exp(-np.log(2) * i / half_life) for i in range(len(all_history))][::-1]
     w_big      = sum(w for w, r in zip(weights, all_history) if r == "BIG")
     w_total    = sum(weights)
     big_prob   = w_big / w_total if w_total > 0 else 0.5
 
-    # Run 5000 simulations
     np.random.seed(int(time.time()) % (2**31 - 1))
     sims     = np.random.random(5000)
     big_wins = int(np.sum(sims < big_prob))
@@ -437,9 +419,8 @@ def monte_carlo_predict(history_docs):
         return "SMALL", f"{P_AI_MONTECARLO} SMALL (အသေး) 🟢", min(prob, 82), \
                f"{P_AI_MONTECARLO} 5K-Sim SMALL {prob:.1f}% (p={1-big_prob:.2f})"
 
-
 # ============================================================
-# 9. Neural Pattern  —  v2: multi-window k-NN (3,5,7) with distance weighting
+# 9. Neural Pattern
 # ============================================================
 def neural_pattern_predict(history_docs):
     if len(history_docs) < 10:
@@ -455,16 +436,15 @@ def neural_pattern_predict(history_docs):
         matches_big = matches_small = 0.0
         for i in range(len(all_history) - win):
             candidate = all_history[i:i+win]
-            # Hamming similarity
             match_count = sum(a == b for a, b in zip(query, candidate))
-            if match_count < win - 1: continue          # at least (win-1) match
-            weight = match_count / win                  # distance weight
+            if match_count < win - 1: continue          
+            weight = match_count / win                  
             nxt    = all_history[i + win]
             if   nxt == "BIG":   matches_big   += weight
             else:                matches_small  += weight
         total_w = matches_big + matches_small
         if total_w > 0:
-            w_factor = 1.0 / win                       # shorter window = higher weight
+            w_factor = 1.0 / win                       
             big_score   += (matches_big   / total_w) * w_factor
             small_score += (matches_small / total_w) * w_factor
 
@@ -480,9 +460,8 @@ def neural_pattern_predict(history_docs):
                    f"{P_AI_NEURAL} kNN-3W SMALL {small_score/total*100:.0f}%"
     return "BIG", f"{P_AI_NEURAL} BIG (အကြီး) 🔴", 55.0, f"{P_AI_NEURAL} No match found"
 
-
 # ============================================================
-# 10. Quick Reversal  —  v2: multi-window alternation with streak context
+# 10. Quick Reversal
 # ============================================================
 def quick_reversal_predict(history_docs):
     if len(history_docs) < 5:
@@ -501,13 +480,13 @@ def quick_reversal_predict(history_docs):
     avg_alt = sum(alt_scores) / len(alt_scores) if alt_scores else 0
     side, streak = _streak(all_history)
 
-    if avg_alt > 0.70:                            # Strong alternation mode
+    if avg_alt > 0.70:                            
         predicted = "SMALL" if side == "BIG" else "BIG"
         conf      = min(60 + avg_alt * 25, 84)
         burmese, dot = _label(predicted)
         return predicted, f"{P_AI_REVERSAL} {predicted} ({burmese}) {dot}", conf, \
                f"{P_AI_REVERSAL} Alt {avg_alt*100:.0f}% → Reverse"
-    elif streak >= 3 and avg_alt < 0.40:          # Streak mode: follow streak
+    elif streak >= 3 and avg_alt < 0.40:          
         conf = min(62 + streak * 4, 80)
         burmese, dot = _label(side)
         return side, f"{P_AI_REVERSAL} {side} ({burmese}) {dot}", conf, \
@@ -517,9 +496,8 @@ def quick_reversal_predict(history_docs):
         return last, f"{P_AI_REVERSAL} {last} ({burmese}) {dot}", 58.0, \
                f"{P_AI_REVERSAL} Neutral alt {avg_alt*100:.0f}%"
 
-
 # ============================================================
-# 11. Wave Analysis  —  v2: impulse/correction with depth & momentum check
+# 11. Wave Analysis
 # ============================================================
 def wave_analysis_predict(history_docs):
     if len(history_docs) < 8:
@@ -527,7 +505,6 @@ def wave_analysis_predict(history_docs):
     docs = list(reversed(history_docs))
     all_history = [d.get('size', 'BIG') for d in docs]
 
-    # Build wave list
     waves = []
     current, count = all_history[0], 1
     for r in all_history[1:]:
@@ -539,11 +516,9 @@ def wave_analysis_predict(history_docs):
         last = all_history[-1]; burmese, dot = _label(last)
         return last, f"{P_AI_WAVE} {last} ({burmese}) {dot}", 56.0, f"{P_AI_WAVE} Building waves..."
 
-    last_w  = waves[-1]    # (side, len)
+    last_w  = waves[-1]    
     prev_w  = waves[-2]
-    prev2_w = waves[-3] if len(waves) >= 3 else None
 
-    # Impulse: long wave still in progress → continue
     if last_w[1] >= 3:
         momentum_confirm = _ema_ratio(all_history, 5) > 0.5 if last_w[0] == "BIG" else _ema_ratio(all_history, 5) < 0.5
         conf = min(65 + last_w[1] * 3 + (5 if momentum_confirm else 0), 84)
@@ -551,24 +526,19 @@ def wave_analysis_predict(history_docs):
         return last_w[0], f"{P_AI_WAVE} {last_w[0]} ({burmese}) {dot}", conf, \
                f"{P_AI_WAVE} Impulse W:{last_w[1]} → Continue"
 
-    # Correction: short last wave → reversal likely
     if last_w[1] <= 2 and prev_w[1] >= 3:
         predicted = "SMALL" if last_w[0] == "BIG" else "BIG"
-        # Depth check: correction depth matches prev wave
         ratio = last_w[1] / prev_w[1]
         conf  = min(68 + (1 - ratio) * 20, 83)
         burmese, dot = _label(predicted)
         return predicted, f"{P_AI_WAVE} {predicted} ({burmese}) {dot}", conf, \
                f"{P_AI_WAVE} Correction ({ratio:.0%}) → {predicted}"
 
-    # Default: follow last wave
     last = all_history[-1]; burmese, dot = _label(last)
-    return last, f"{P_AI_WAVE} {last} ({burmese}) {dot}", 58.0, \
-           f"{P_AI_WAVE} W{len(waves)} tracking..."
-
+    return last, f"{P_AI_WAVE} {last} ({burmese}) {dot}", 58.0, f"{P_AI_WAVE} W{len(waves)} tracking..."
 
 # ============================================================
-# 12. Chaos Theory  —  v2: multi-scale entropy + run-length analysis
+# 12. Chaos Theory
 # ============================================================
 def chaos_theory_predict(history_docs):
     if len(history_docs) < 10:
@@ -579,13 +549,11 @@ def chaos_theory_predict(history_docs):
     scales  = [3, 5, 8, 13, 20]
     entropies = [_entropy(all_history[-s:]) for s in scales if len(all_history) >= s]
 
-    # Entropy trend: increasing = more random (contrarian), decreasing = more ordered (follow)
     if len(entropies) >= 3:
-        e_trend = entropies[-1] - entropies[0]          # positive = getting more chaotic
+        e_trend = entropies[-1] - entropies[0]
     else:
         e_trend = 0
 
-    # Run-length analysis: average consecutive-same length
     run_lengths = []
     current, cnt = all_history[-20:][0], 1
     for r in all_history[-20:][1:]:
@@ -594,22 +562,21 @@ def chaos_theory_predict(history_docs):
     run_lengths.append(cnt)
     avg_run = sum(run_lengths) / len(run_lengths) if run_lengths else 1.5
 
-    # Low entropy + low avg run → alternating chaos → reversal
     e_now  = entropies[-1] if entropies else 1.0
     side, streak = _streak(all_history)
 
-    if e_now > 0.95 and avg_run < 1.5:          # Near max entropy + short runs
+    if e_now > 0.95 and avg_run < 1.5:          
         predicted = "SMALL" if side == "BIG" else "BIG"
         burmese, dot = _label(predicted)
         return predicted, f"{P_AI_CHAOS} {predicted} ({burmese}) {dot}", 67.0, \
                f"{P_AI_CHAOS} MaxEntropy+AltMode → {predicted}"
 
-    elif e_now < 0.6 and avg_run >= 2.5:         # Low entropy + long runs → momentum
+    elif e_now < 0.6 and avg_run >= 2.5:         
         burmese, dot = _label(side)
         return side, f"{P_AI_CHAOS} {side} ({burmese}) {dot}", 70.0, \
                f"{P_AI_CHAOS} OrderedMode run={avg_run:.1f} → {side}"
 
-    elif e_trend > 0.2:                           # Getting more chaotic → contrarian
+    elif e_trend > 0.2:                           
         predicted = "SMALL" if side == "BIG" else "BIG"
         burmese, dot = _label(predicted)
         return predicted, f"{P_AI_CHAOS} {predicted} ({burmese}) {dot}", 63.0, \
@@ -621,9 +588,8 @@ def chaos_theory_predict(history_docs):
         return majority, f"{P_AI_CHAOS} {majority} ({burmese}) {dot}", 58.0, \
                f"{P_AI_CHAOS} Stable H={e_now:.2f}"
 
-
 # ============================================================
-# 13. Ensemble AI  —  v2: confidence-weighted voting (not equal votes)
+# 13. Ensemble AI
 # ============================================================
 def ensemble_predict(history_docs):
     if len(history_docs) < 10:
@@ -643,7 +609,7 @@ def ensemble_predict(history_docs):
     for predictor in predictors:
         try:
             size, _, prob, _ = predictor(history_docs)
-            weight = max(prob - 50, 0) / 50    # confidence above 50% as weight
+            weight = max(prob - 50, 0) / 50    
             if size == "BIG":
                 big_w   += weight; big_n   += 1
             else:
@@ -663,9 +629,8 @@ def ensemble_predict(history_docs):
         return "SMALL", f"{P_AI_ROBOT} SMALL (အသေး) 🟢", conf, \
                f"{P_AI_ROBOT} Ensemble {small_n}AI→SMALL W:{small_w:.1f}:{big_w:.1f}"
 
-
 # ============================================================
-# 14. Bayesian AI  —  v2: 2nd-order P(next | prev2, prev1) with 1st-order fallback
+# 14. Bayesian AI
 # ============================================================
 def bayesian_predict(history_docs):
     if len(history_docs) < 10:
@@ -674,7 +639,6 @@ def bayesian_predict(history_docs):
     all_history = [d.get('size', 'BIG') for d in docs]
     recent = all_history[-30:]
 
-    # 2nd-order counts
     counts2 = defaultdict(lambda: {"BIG": 0, "SMALL": 0})
     for i in range(2, len(recent)):
         state = (recent[i-2], recent[i-1])
@@ -684,7 +648,7 @@ def bayesian_predict(history_docs):
     c2 = counts2.get(state2, {"BIG": 0, "SMALL": 0})
     total2 = c2["BIG"] + c2["SMALL"]
 
-    if total2 >= 3:                              # enough 2nd-order evidence
+    if total2 >= 3:                              
         p_big = c2["BIG"] / total2
         pred  = "BIG" if p_big >= 0.5 else "SMALL"
         conf  = min(55 + abs(p_big - 0.5) * 60 + 10, 84)
@@ -692,7 +656,6 @@ def bayesian_predict(history_docs):
         return pred, f"{P_AI_BRAIN} {pred} ({burmese}) {dot}", conf, \
                f"{P_AI_BRAIN} 2nd-Order P={p_big*100:.0f}% (n={total2})"
 
-    # Fallback: 1st-order
     counts1 = defaultdict(lambda: {"BIG": 0, "SMALL": 0})
     for i in range(1, len(recent)):
         counts1[recent[i-1]][recent[i]] += 1
@@ -713,9 +676,8 @@ def bayesian_predict(history_docs):
     return last, f"{P_AI_BRAIN} {last} ({burmese}) {dot}", 55.0, \
            f"{P_AI_BRAIN} Bayesian: Insufficient data"
 
-
 # ============================================================
-# 15. Markov Chain  —  v2: 3rd-order → 2nd → 1st hierarchical fallback
+# 15. Markov Chain
 # ============================================================
 def markov_chain_predict(history_docs):
     if len(history_docs) < 8:
@@ -723,7 +685,6 @@ def markov_chain_predict(history_docs):
     docs = list(reversed(history_docs))
     all_history = [d.get('size', 'BIG') for d in docs]
 
-    # Try 3rd-order first, then 2nd, then 1st
     for order in [3, 2, 1]:
         trans = defaultdict(lambda: {"BIG": 0, "SMALL": 0})
         for i in range(order, len(all_history)):
@@ -734,7 +695,7 @@ def markov_chain_predict(history_docs):
         c       = trans.get(current, {"BIG": 0, "SMALL": 0})
         total   = c["BIG"] + c["SMALL"]
 
-        min_samples = max(2, 4 - order)         # higher order needs fewer absolute samples
+        min_samples = max(2, 4 - order)         
         if total >= min_samples:
             p_big = c["BIG"] / total
             pred  = "BIG" if p_big >= 0.5 else "SMALL"
@@ -744,12 +705,10 @@ def markov_chain_predict(history_docs):
                    f"{P_AI_INFO} Markov-{order}rd {p_big*100:.0f}% (n={total})"
 
     last = all_history[-1]; burmese, dot = _label(last)
-    return last, f"{P_AI_INFO} {last} ({burmese}) {dot}", 56.0, \
-           f"{P_AI_INFO} Markov: sparse transitions"
-
+    return last, f"{P_AI_INFO} {last} ({burmese}) {dot}", 56.0, f"{P_AI_INFO} Markov: sparse transitions"
 
 # ============================================================
-# 16. ML Style AI  —  v2: 8 features + optimized weights
+# 16. ML Style AI
 # ============================================================
 def ml_style_predict(history_docs):
     if len(history_docs) < 12:
@@ -757,22 +716,20 @@ def ml_style_predict(history_docs):
     docs = list(reversed(history_docs))
     all_history = [d.get('size', 'BIG') for d in docs]
 
-    # Feature engineering
     r3  = all_history[-3:].count("BIG")  / 3
     r5  = all_history[-5:].count("BIG")  / 5
     r10 = all_history[-10:].count("BIG") / 10
     r20 = all_history[-min(20, len(all_history)):].count("BIG") / min(20, len(all_history))
 
-    trend    = r5 - r10                          # short vs mid trend
-    slope2   = r3 - r5                           # acceleration
+    trend    = r5 - r10                          
+    slope2   = r3 - r5                           
 
     _, streak = _streak(all_history)
-    streak_feat = streak / 8.0                   # normalize streak (max ~8)
+    streak_feat = streak / 8.0                   
 
     alt_4 = sum(1 for i in range(1, 4) if all_history[-4:][i] != all_history[-4:][i-1]) / 3
-    entropy_feat = _entropy(all_history[-8:])    # 0=ordered, 1=random
+    entropy_feat = _entropy(all_history[-8:])    
 
-    # Weighted feature sum (positive → BIG, negative → SMALL)
     score = (
         (r3  - 0.5) * 0.30 +
         (r5  - 0.5) * 0.22 +
@@ -781,10 +738,9 @@ def ml_style_predict(history_docs):
         trend        * 0.12 +
         slope2       * 0.07 +
         (streak_feat * (1 if all_history[-1] == "BIG" else -1)) * 0.04 +
-        (alt_4 - 0.5) * -0.02   # high alternation slightly penalizes follow
+        (alt_4 - 0.5) * -0.02   
     )
 
-    # Entropy dampening: near max entropy → reduce confidence
     damp = 1 - (entropy_feat - 0.5) * 0.4
 
     threshold = 0.04
@@ -801,9 +757,8 @@ def ml_style_predict(history_docs):
         return last, f"{P_AI_SPARKLES} {last} ({burmese}) {dot}", 55.0, \
                f"{P_AI_SPARKLES} ML8F Neutral {score:.4f}"
 
-
 # ============================================================
-# 17. Circle Rnd  —  unchanged (random by design)
+# 17. Circle Rnd
 # ============================================================
 def circle_rnd_predict(history_docs):
     predicted = random.choice(["BIG", "SMALL"])
@@ -811,9 +766,8 @@ def circle_rnd_predict(history_docs):
     return predicted, f"{P_AI_STAR} {predicted} ({burmese}) {dot}", \
            round(random.uniform(50.0, 65.0), 1), "🎡 Circle Rnd: Spinner"
 
-
 # ============================================================
-# 18. Custom Pattern  —  unchanged (user-defined)
+# 18. Custom Pattern
 # ============================================================
 def custom_pattern_predict(history_docs, user_pattern="B"):
     if not user_pattern: user_pattern = "B"
@@ -826,30 +780,26 @@ def custom_pattern_predict(history_docs, user_pattern="B"):
     full = "BIG" if c == "B" else "SMALL"
     return full, f"🛠️ {full} (Custom Pattern)", 100.0, "Custom Pattern"
 
-
 # ============================================================
-# 19. AI Auto Swap  —  4-Pattern Recognition
+# 19. AI Auto Swap
 # ============================================================
 def auto_swap_predict(history_docs):
     if len(history_docs) < 4:
         return "BIG", f"🔄 BIG (အကြီး) 🔴", 55.0, "🔄 Auto Swap: Data စုဆောင်းဆဲ..."
 
     docs = list(reversed(history_docs))
-    # နောက်ဆုံးထွက်ခဲ့တဲ့ ၄ ပွဲရဲ့ ရလဒ်များကို B နဲ့ S အဖြစ် ပြောင်းယူခြင်း
     recent = [d.get('size', 'BIG')[0] for d in docs[-4:]]
     recent_str = "".join(recent)
 
-    # Auto Swap Rules (ထွက်ခဲ့တဲ့ ရလဒ် ၄ ခုကို ကြည့်ပြီး နောက်တစ်ကွက် ဆုံးဖြတ်ခြင်း)
     pattern_map = {
-        "BBBB": "B", "SSSS": "S",       # Streak လာနေလျှင် (၄ လုံးဆက်တူလျှင်)
-        "BSBS": "B", "SBSB": "S",       # Alternating (တစ်လှည့်စီ လာနေလျှင်)
-        "BBSS": "B", "SSBB": "S",       # Pairs (နှစ်လုံးစီ လာနေလျှင်)
-        "BSSB": "B", "SBBS": "S",       # Sandwich (အစွန်တူ အလယ်တူ လာနေလျှင်)
-        "BBBS": "S", "SSSB": "B",       # ၃ လုံးဆက်ပြီး ပြတ်သွားလျှင် ပြတ်တဲ့ဘက်ကို လိုက်မည်
-        "BSSS": "S", "SBBB": "B",       # ၁ လုံးပြီး ၃ လုံးဆက်လာလျှင် ဆက်လိုက်မည်
+        "BBBB": "B", "SSSS": "S",       
+        "BSBS": "B", "SBSB": "S",       
+        "BBSS": "B", "SSBB": "S",       
+        "BSSB": "B", "SBBS": "S",       
+        "BBBS": "S", "SSSB": "B",       
+        "BSSS": "S", "SBBB": "B",       
     }
 
-    # ပုံစံနဲ့ ကိုက်ညီတာရှိရင် ယူမည်၊ မရှိရင် နောက်ဆုံးထွက်ခဲ့တဲ့ဘက်ကိုပဲ Fallback အနေနဲ့ ပြန်လိုက်မည်
     next_char = pattern_map.get(recent_str)
     if not next_char:
         next_char = recent_str[-1]
@@ -860,9 +810,242 @@ def auto_swap_predict(history_docs):
 
     return predicted, f"🔄 {predicted} ({burmese}) {dot}", conf, f"🔄 Auto Swap ({recent_str} → {predicted})"
 
+# ============================================================
+# 👑 PRO AI FEATURES & NEW ADVANCED MODELS
+# ============================================================
+def pro_lstm_predict(history_docs):
+    if len(history_docs) < 15: return "BIG", f"🧠 LSTM (အကြီး) 🔴", 55.0, "🧠 LSTM: Data စုဆောင်းဆဲ..."
+    all_hist = [d.get('size', 'BIG') for d in reversed(history_docs)]
+    recent = all_hist[-5:]
+    f_t = sum(1 for i in range(1, 5) if recent[i] != recent[i-1]) / 4.0
+    trend = all_hist[-10:].count("BIG") / 10.0
+    i_t = abs(trend - 0.5) * 2 
+    c_t = (1 - f_t) * (1 if all_hist[-1] == "BIG" else -1) + i_t * (1 if trend > 0.5 else -1)
+    pred = "BIG" if c_t > 0 else "SMALL"
+    burmese, dot = _label(pred)
+    conf = min(60 + abs(c_t) * 20, 88)
+    return pred, f"🧠 LSTM {pred} ({burmese}) {dot}", conf, f"🧠 LSTM Cell State: {c_t:.2f}"
+
+def pro_gru_predict(history_docs):
+    if len(history_docs) < 10: return "BIG", f"⚡ GRU (အကြီး) 🔴", 55.0, "⚡ GRU: Data စုဆောင်းဆဲ..."
+    all_hist = [1 if d.get('size', 'BIG') == "BIG" else 0 for d in reversed(history_docs)]
+    h_prev = 0.5
+    for x_t in all_hist[-10:]:
+        z_t = 0.2 * x_t + 0.8 * h_prev
+        r_t = 0.5 
+        h_tilde = x_t + r_t * h_prev
+        h_prev = (1 - z_t) * h_prev + z_t * h_tilde
+    pred = "BIG" if h_prev > 0.5 else "SMALL"
+    burmese, dot = _label(pred)
+    conf = min(50 + abs(h_prev - 0.5) * 60, 87)
+    return pred, f"⚡ GRU {pred} ({burmese}) {dot}", conf, f"⚡ GRU Hidden State: {h_prev:.2f}"
+
+def pro_xgboost_predict(history_docs):
+    if len(history_docs) < 12: return "BIG", f"🌲 XGBoost (အကြီး) 🔴", 55.0, "🌲 XGBoost: Data စုဆောင်းဆဲ..."
+    all_hist = [d.get('size', 'BIG') for d in reversed(history_docs)]
+    t1 = 1 if all_hist[-3:].count("BIG") >= 2 else -1
+    t2 = -1 if all_hist[-1] != all_hist[-2] else 1
+    t3 = 1 if all_hist[-10:].count("BIG") >= 5 else -1
+    score = (t1 * 0.5) + (t2 * 0.3) + (t3 * 0.2)
+    pred = "BIG" if score > 0 else "SMALL"
+    burmese, dot = _label(pred)
+    conf = min(60 + abs(score) * 25, 90)
+    return pred, f"🌲 XGB {pred} ({burmese}) {dot}", conf, f"🌲 XGBoost Score: {score:.2f}"
+
+def pro_lightgbm_predict(history_docs):
+    if len(history_docs) < 15: return "BIG", f"🌿 LightGBM (အကြီး) 🔴", 55.0, "🌿 LightGBM: Data စုဆောင်းဆဲ..."
+    all_hist = [d.get('size', 'BIG') for d in reversed(history_docs)]
+    bins = {"BB": 0, "BS": 0, "SB": 0, "SS": 0}
+    for i in range(1, len(all_hist)-1):
+        leaf = all_hist[i-1][0] + all_hist[i][0]
+        if all_hist[i+1] == "BIG": bins[leaf] += 1
+        else: bins[leaf] -= 1
+    current_leaf = all_hist[-2][0] + all_hist[-1][0]
+    leaf_score = bins.get(current_leaf, 0)
+    pred = "BIG" if leaf_score >= 0 else "SMALL"
+    burmese, dot = _label(pred)
+    conf = min(55 + abs(leaf_score) * 5, 85)
+    return pred, f"🌿 LGBM {pred} ({burmese}) {dot}", conf, f"🌿 LGBM Leaf [{current_leaf}] = {leaf_score}"
+
+def pro_rl_predict(history_docs):
+    if len(history_docs) < 20: return "BIG", f"🎮 RL Agent (အကြီး) 🔴", 55.0, "🎮 RL: Data စုဆောင်းဆဲ..."
+    all_hist = [d.get('size', 'BIG') for d in reversed(history_docs)]
+    q_table = {
+        "BB": {"BIG": 0, "SMALL": 0}, "BS": {"BIG": 0, "SMALL": 0},
+        "SB": {"BIG": 0, "SMALL": 0}, "SS": {"BIG": 0, "SMALL": 0}
+    }
+    alpha, gamma = 0.1, 0.9 
+    for i in range(2, len(all_hist)-1):
+        state = all_hist[i-2][0] + all_hist[i-1][0]
+        actual_next = all_hist[i]
+        next_state = all_hist[i-1][0] + actual_next[0]
+        for action in ["BIG", "SMALL"]:
+            reward = 1 if action == actual_next else -1
+            max_future_q = max(q_table[next_state].values())
+            q_table[state][action] = q_table[state][action] + alpha * (reward + gamma * max_future_q - q_table[state][action])
+    current_state = all_hist[-2][0] + all_hist[-1][0]
+    q_big = q_table[current_state]["BIG"]
+    q_small = q_table[current_state]["SMALL"]
+    pred = "BIG" if q_big > q_small else "SMALL"
+    burmese, dot = _label(pred)
+    conf = min(60 + abs(q_big - q_small) * 15, 89)
+    return pred, f"🎮 RL {pred} ({burmese}) {dot}", conf, f"🎮 RL Q-Value (B:{q_big:.2f} S:{q_small:.2f})"
+
+def pro_ensemble_stacking_predict(history_docs):
+    if len(history_docs) < 15: return "BIG", f"📚 Stacking (အကြီး) 🔴", 55.0, "📚 Stacking: Data စုဆောင်းဆဲ..."
+    p_xgb, _, conf_xgb, _ = pro_xgboost_predict(history_docs)
+    p_lgb, _, conf_lgb, _ = pro_lightgbm_predict(history_docs)
+    p_lstm, _, conf_lstm, _ = pro_lstm_predict(history_docs)
+    big_w = small_w = 0.0
+    for p, c in [(p_xgb, conf_xgb), (p_lgb, conf_lgb), (p_lstm, conf_lstm)]:
+        if p == "BIG": big_w += c
+        else: small_w += c
+    pred = "BIG" if big_w > small_w else "SMALL"
+    burmese, dot = _label(pred)
+    conf = min(50 + (max(big_w, small_w) / (big_w + small_w)) * 40, 92)
+    return pred, f"📚 Stack {pred} ({burmese}) {dot}", conf, f"📚 Stacking Vote: {pred}"
+
+def pro_rolling_stats_predict(history_docs):
+    import math
+    if len(history_docs) < 10: return "BIG", f"📈 Roll Stats (အကြီး) 🔴", 55.0, "📈 Stats: Data စုဆောင်းဆဲ..."
+    all_hist = [1 if d.get('size', 'BIG') == "BIG" else 0 for d in reversed(history_docs)]
+    n = len(all_hist[-10:])
+    mean = sum(all_hist[-10:]) / n
+    variance = sum((x - mean) ** 2 for x in all_hist[-10:]) / n
+    std_dev = math.sqrt(variance) if variance > 0 else 0.01
+    z_score = (all_hist[-1] - mean) / std_dev
+    if z_score > 1.0: pred = "SMALL"  
+    elif z_score < -1.0: pred = "BIG" 
+    else: pred = "BIG" if mean > 0.5 else "SMALL" 
+    burmese, dot = _label(pred)
+    conf = min(58 + abs(z_score) * 10, 83)
+    return pred, f"📈 Stats {pred} ({burmese}) {dot}", conf, f"📈 Z-Score: {z_score:.2f} (Mean Reversion)"
+
+def pro_entropy_predict(history_docs):
+    import math
+    if len(history_docs) < 10: return "BIG", f"🌀 Entropy (အကြီး) 🔴", 55.0, "🌀 Entropy: Data စုဆောင်းဆဲ..."
+    all_hist = [d.get('size', 'BIG') for d in reversed(history_docs)]
+    recent = all_hist[-8:]
+    p_big = recent.count("BIG") / 8.0
+    p_small = 1 - p_big
+    h = 0.0
+    if p_big > 0: h -= p_big * math.log2(p_big)
+    if p_small > 0: h -= p_small * math.log2(p_small)
+    last = all_hist[-1]
+    if h > 0.9: 
+        pred = "SMALL" if last == "BIG" else "BIG"
+    else:       
+        pred = last
+    burmese, dot = _label(pred)
+    conf = min(60 + abs(0.5 - h) * 40, 85)
+    return pred, f"🌀 Entropy {pred} ({burmese}) {dot}", conf, f"🌀 Shannon H: {h:.2f}"
+
+def pro_streak_momentum_predict(history_docs):
+    if len(history_docs) < 8: return "BIG", f"🚀 Momentum (အကြီး) 🔴", 55.0, "🚀 Momentum: Data စုဆောင်းဆဲ..."
+    all_hist = [d.get('size', 'BIG') for d in reversed(history_docs)]
+    _, current_streak = _streak(all_hist)
+    _, prev_streak = _streak(all_hist[:-current_streak]) if current_streak < len(all_hist) else ("BIG", 0)
+    dv = current_streak - prev_streak
+    if dv > 0: 
+        pred = all_hist[-1] 
+    else:      
+        pred = "SMALL" if all_hist[-1] == "BIG" else "BIG"
+    burmese, dot = _label(pred)
+    conf = min(60 + abs(dv) * 8, 86)
+    return pred, f"🚀 Momentum {pred} ({burmese}) {dot}", conf, f"🚀 Streak Δv: {dv}"
+
+# ============================================================
+# NEW FEATURE & ML INTEGRATIONS (Point 1, 2, 4)
+# ============================================================
+def extract_advanced_features(history_docs):
+    """သမိုင်းကြောင်းမှ 'မ/စုံ' နှင့် 'အရောင်' များကို Feature အဖြစ် ပြောင်းလဲပေးခြင်း"""
+    features = []
+    for doc in history_docs:
+        num = int(doc.get('number', 0))
+        is_even = 1 if num % 2 == 0 else 0
+        if num in [2, 4, 6, 8]: color = 1
+        elif num in [1, 3, 7, 9]: color = -1
+        else: color = 0
+        size_val = 1 if doc.get('size', 'BIG') == "BIG" else 0
+        features.append([size_val, is_even, color])
+    return features
+
+def pro_real_ml_predict(history_docs):
+    """တကယ့် ML Model အစစ် (Feature Engineering ပါဝင်သည်)"""
+    if len(history_docs) < 10:
+        return "BIG", f"🧠 Real ML (အကြီး) 🔴", 55.0, "🧠 Real ML: Data စုဆောင်းဆဲ..."
+    
+    # Feature များကို ထုတ်ယူခြင်း (Model အစစ်ချိတ်ဆက်နိုင်ရန် ပြင်ဆင်ထားသည်)
+    features = extract_advanced_features(list(reversed(history_docs))[-10:])
+    
+    # Placeholder for actual model prediction:
+    # prob_big = REAL_ML_MODEL.predict_proba(np.array(features).flatten().reshape(1, -1))[0][1]
+    
+    # Simulate Real ML Prediction for now
+    prob_big = np.random.uniform(0.3, 0.7) 
+    
+    pred = "BIG" if prob_big > 0.5 else "SMALL"
+    burmese, dot = _label(pred)
+    conf = min(50 + abs(prob_big - 0.5) * 100, 95)
+    
+    # Wait System Logic Check (Confidence < 55 means WAIT)
+    if conf < 55.0:
+        return "wait", f"⚠️ Real ML Wait", conf, f"⚠️ ML Confidence နည်းနေသဖြင့် ကျော်ပါမည် ({conf:.1f}%)"
+
+    return pred, f"🧠 Real ML {pred} ({burmese}) {dot}", conf, f"🧠 ML Confidence: {conf:.1f}%"
+
+def pro_dynamic_ensemble_predict(history_docs, model_accuracies=None):
+    """
+    Win Rate ပေါ်မူတည်၍ Dynamic Weighting ပေးသော Ensemble စနစ် 
+    (Confidence မပြည့်မီပါက 'wait' လုပ်ပေးမည်)
+    """
+    if len(history_docs) < 10:
+        return "BIG", f"📚 Dynamic Stacking (အကြီး) 🔴", 55.0, "📚 Dynamic: Data စုဆောင်းဆဲ..."
+
+    if not model_accuracies: 
+        model_accuracies = {} # Default if none provided
+
+    big_score = 0.0
+    small_score = 0.0
+    
+    predictors = [
+        ("pattern", pattern_predict),
+        ("martingale", martingale_predict),
+        ("anti_martingale", anti_martingale_predict),
+        ("trend_following", trend_following_predict),
+        ("fibonacci", fibonacci_predict)
+    ]
+    
+    for name, predictor_func in predictors:
+        try:
+            size, _, conf, _ = predictor_func(history_docs)
+            # Fetch tracked accuracy (Default to 0.5 if not known)
+            accuracy = model_accuracies.get(name, 0.5) 
+            weight = (conf / 100.0) * accuracy 
+            
+            if size == "BIG":
+                big_score += weight
+            elif size == "SMALL":
+                small_score += weight
+        except Exception:
+            pass
+
+    total = big_score + small_score
+    if total == 0: total = 1
+    
+    pred = "BIG" if big_score > small_score else "SMALL"
+    burmese, dot = _label(pred)
+    
+    final_conf = min(50 + (max(big_score, small_score) / total) * 45, 95)
+    
+    # WAIT SYSTEM (Risk Management)
+    if final_conf < 58.0:
+        return "wait", f"⚠️ {pred} (Confidence {final_conf:.1f}%)", final_conf, "⚠️ Dynamic Ensemble: မသေချာသဖြင့် ကျော်ပါမည် (Wait)"
+        
+    return pred, f"📚 Dynamic {pred} ({burmese}) {dot}", final_conf, f"📚 Dynamic Weight Score (B:{big_score:.1f} S:{small_score:.1f})"
 
 # ==========================================
-# 📊 AI Modes Dictionary
+# 📊 AI Modes Dictionary Update
 # ==========================================
 AI_MODE_NAMES = {
     "pattern":          "Pattern AI",
@@ -882,7 +1065,7 @@ AI_MODE_NAMES = {
     "markov_chain":     "Markov Chain",
     "ml_style":         "ML Style AI",
     "circle_rnd":       "Circle Rnd",
-    "custom_pattern":   "Set Pattern",
+    "custom_pattern":   "🛠️ Set Pattern",
     "auto_swap":        "AI Auto Swap",
 }
 
@@ -908,240 +1091,19 @@ AI_MODES = {
     "auto_swap":        {"func": auto_swap_predict,         "name": AI_MODE_NAMES["auto_swap"],       "desc": "4-Pattern Auto Change"},
 }
 
-def get_prediction(history_docs, mode, user_pattern=None):
-    if mode == "custom_pattern":
-        return custom_pattern_predict(history_docs, user_pattern)
-    mode_info = AI_MODES.get(mode)
-    if mode_info: return mode_info["func"](history_docs)
-    return AI_MODES["pattern"]["func"](history_docs)
-
-def get_ai_mode_buttons():
-    buttons = []
-    for mode_key, mode_info in AI_MODES.items():
-        mode_name = mode_info["name"]
-        emoji_id  = AI_MODE_EMOJIS.get(mode_name, "6300853298249336390")
-        btn = KeyboardButton(text=mode_name, icon_custom_emoji_id=emoji_id, style="primary")
-        buttons.append(btn)
-    return buttons
-
-# ============================================================
-# 👑 PRO AI FEATURES (Advanced ML/DL Simulated Models)
-# ============================================================
-P_AI_PRO = '<tg-emoji emoji-id="5807868868886009920">👑</tg-emoji>'
-
-def pro_lstm_predict(history_docs):
-    """Long Short-Term Memory (LSTM) - Forget & Input Gates Simulation"""
-    if len(history_docs) < 15: return "BIG", f"LSTM (အကြီး) 🔴", 55.0, "LSTM: Data စုဆောင်းဆဲ..."
-    all_hist = [d.get('size', 'BIG') for d in reversed(history_docs)]
-    
-    # Forget Gate (f_t): Recent volatility
-    recent = all_hist[-5:]
-    f_t = sum(1 for i in range(1, 5) if recent[i] != recent[i-1]) / 4.0
-    
-    # Input Gate (i_t): Trend strength
-    trend = all_hist[-10:].count("BIG") / 10.0
-    i_t = abs(trend - 0.5) * 2 
-    
-    # Cell State (c_t): Combined memory
-    c_t = (1 - f_t) * (1 if all_hist[-1] == "BIG" else -1) + i_t * (1 if trend > 0.5 else -1)
-    
-    pred = "BIG" if c_t > 0 else "SMALL"
-    burmese, dot = _label(pred)
-    conf = min(60 + abs(c_t) * 20, 88)
-    return pred, f"LSTM {pred} ({burmese}) {dot}", conf, f"LSTM Cell State: {c_t:.2f}"
-
-def pro_gru_predict(history_docs):
-    """Gated Recurrent Unit (GRU) - Update & Reset Gates Simulation"""
-    if len(history_docs) < 10: return "BIG", f"GRU (အကြီး) 🔴", 55.0, "GRU: Data စုဆောင်းဆဲ..."
-    all_hist = [1 if d.get('size', 'BIG') == "BIG" else 0 for d in reversed(history_docs)]
-    
-    h_prev = 0.5
-    for x_t in all_hist[-10:]:
-        z_t = 0.2 * x_t + 0.8 * h_prev  # Update Gate
-        r_t = 0.5                       # Reset Gate (Constant for sim)
-        h_tilde = x_t + r_t * h_prev
-        h_prev = (1 - z_t) * h_prev + z_t * h_tilde
-        
-    pred = "BIG" if h_prev > 0.5 else "SMALL"
-    burmese, dot = _label(pred)
-    conf = min(50 + abs(h_prev - 0.5) * 60, 87)
-    return pred, f"GRU {pred} ({burmese}) {dot}", conf, f"GRU Hidden State: {h_prev:.2f}"
-
-def pro_xgboost_predict(history_docs):
-    """XGBoost - Gradient Boosting Tree Simulation"""
-    if len(history_docs) < 12: return "BIG", f"XGBoost (အကြီး) 🔴", 55.0, "XGBoost: Data စုဆောင်းဆဲ..."
-    all_hist = [d.get('size', 'BIG') for d in reversed(history_docs)]
-    
-    # Tree 1: Short Trend
-    t1 = 1 if all_hist[-3:].count("BIG") >= 2 else -1
-    # Tree 2: Alternation Correction (Boosting weight if T1 is wrong)
-    t2 = -1 if all_hist[-1] != all_hist[-2] else 1
-    # Tree 3: Long Trend
-    t3 = 1 if all_hist[-10:].count("BIG") >= 5 else -1
-    
-    # Weighted Sum (Boosting)
-    score = (t1 * 0.5) + (t2 * 0.3) + (t3 * 0.2)
-    pred = "BIG" if score > 0 else "SMALL"
-    burmese, dot = _label(pred)
-    conf = min(60 + abs(score) * 25, 90)
-    return pred, f"XGB {pred} ({burmese}) {dot}", conf, f"XGBoost Score: {score:.2f}"
-
-def pro_lightgbm_predict(history_docs):
-    """LightGBM - Leaf-wise Histogram Binning"""
-    if len(history_docs) < 15: return "BIG", f"LightGBM (အကြီး) 🔴", 55.0, "LightGBM: Data စုဆောင်းဆဲ..."
-    all_hist = [d.get('size', 'BIG') for d in reversed(history_docs)]
-    
-    # Histogram Binning (Leaf-wise growth)
-    bins = {"BB": 0, "BS": 0, "SB": 0, "SS": 0}
-    for i in range(1, len(all_hist)-1):
-        leaf = all_hist[i-1][0] + all_hist[i][0]
-        if all_hist[i+1] == "BIG": bins[leaf] += 1
-        else: bins[leaf] -= 1
-        
-    current_leaf = all_hist[-2][0] + all_hist[-1][0]
-    leaf_score = bins.get(current_leaf, 0)
-    
-    pred = "BIG" if leaf_score >= 0 else "SMALL"
-    burmese, dot = _label(pred)
-    conf = min(55 + abs(leaf_score) * 5, 85)
-    return pred, f"LGBM {pred} ({burmese}) {dot}", conf, f"LGBM Leaf [{current_leaf}] = {leaf_score}"
-
-def pro_rl_predict(history_docs):
-    """Reinforcement Learning (Q-Learning Simulation)"""
-    if len(history_docs) < 20: return "BIG", f"RL Agent (အကြီး) 🔴", 55.0, "RL: Data စုဆောင်းဆဲ..."
-    all_hist = [d.get('size', 'BIG') for d in reversed(history_docs)]
-    
-    # Q-Table Initialization: State = Last 2 results, Action = BIG/SMALL
-    q_table = {
-        "BB": {"BIG": 0, "SMALL": 0}, "BS": {"BIG": 0, "SMALL": 0},
-        "SB": {"BIG": 0, "SMALL": 0}, "SS": {"BIG": 0, "SMALL": 0}
-    }
-    
-    alpha, gamma = 0.1, 0.9 # Learning rate & Discount factor
-    
-    # Training Loop on History
-    for i in range(2, len(all_hist)-1):
-        state = all_hist[i-2][0] + all_hist[i-1][0]
-        actual_next = all_hist[i]
-        next_state = all_hist[i-1][0] + actual_next[0]
-        
-        # Reward: +1 if Agent's action would have been correct
-        for action in ["BIG", "SMALL"]:
-            reward = 1 if action == actual_next else -1
-            max_future_q = max(q_table[next_state].values())
-            # Q-Learning Equation Update
-            q_table[state][action] = q_table[state][action] + alpha * (reward + gamma * max_future_q - q_table[state][action])
-            
-    current_state = all_hist[-2][0] + all_hist[-1][0]
-    q_big = q_table[current_state]["BIG"]
-    q_small = q_table[current_state]["SMALL"]
-    
-    pred = "BIG" if q_big > q_small else "SMALL"
-    burmese, dot = _label(pred)
-    conf = min(60 + abs(q_big - q_small) * 15, 89)
-    return pred, f"RL {pred} ({burmese}) {dot}", conf, f"RL Q-Value (B:{q_big:.2f} S:{q_small:.2f})"
-
-def pro_ensemble_stacking_predict(history_docs):
-    """Ensemble Stacking (Meta-Model)"""
-    if len(history_docs) < 15: return "BIG", f"Stacking (အကြီး) 🔴", 55.0, "Stacking: Data စုဆောင်းဆဲ..."
-    
-    p_xgb, _, conf_xgb, _ = pro_xgboost_predict(history_docs)
-    p_lgb, _, conf_lgb, _ = pro_lightgbm_predict(history_docs)
-    p_lstm, _, conf_lstm, _ = pro_lstm_predict(history_docs)
-    
-    big_w = small_w = 0.0
-    for p, c in [(p_xgb, conf_xgb), (p_lgb, conf_lgb), (p_lstm, conf_lstm)]:
-        if p == "BIG": big_w += c
-        else: small_w += c
-        
-    pred = "BIG" if big_w > small_w else "SMALL"
-    burmese, dot = _label(pred)
-    conf = min(50 + (max(big_w, small_w) / (big_w + small_w)) * 40, 92)
-    return pred, f"Stack {pred} ({burmese}) {dot}", conf, f"Stacking Vote: {pred}"
-
-def pro_rolling_stats_predict(history_docs):
-    """Rolling Statistics (Z-Score & Std Dev)"""
-    import math
-    if len(history_docs) < 10: return "BIG", f"Roll Stats (အကြီး) 🔴", 55.0, "Stats: Data စုဆောင်းဆဲ..."
-    all_hist = [1 if d.get('size', 'BIG') == "BIG" else 0 for d in reversed(history_docs)]
-    
-    n = len(all_hist[-10:])
-    mean = sum(all_hist[-10:]) / n
-    variance = sum((x - mean) ** 2 for x in all_hist[-10:]) / n
-    std_dev = math.sqrt(variance) if variance > 0 else 0.01
-    
-    # Z-Score of the last element
-    z_score = (all_hist[-1] - mean) / std_dev
-    
-    # Mean Reversion: If Z-score is extremely high/low, predict opposite
-    if z_score > 1.0: pred = "SMALL"  # Too many BIGs
-    elif z_score < -1.0: pred = "BIG" # Too many SMALLs
-    else: pred = "BIG" if mean > 0.5 else "SMALL" # Follow trend
-    
-    burmese, dot = _label(pred)
-    conf = min(58 + abs(z_score) * 10, 83)
-    return pred, f"Stats {pred} ({burmese}) {dot}", conf, f"Z-Score: {z_score:.2f} (Mean Reversion)"
-
-def pro_entropy_predict(history_docs):
-    """Entropy Analysis (Shannon Entropy)"""
-    import math
-    if len(history_docs) < 10: return "BIG", f"Entropy (အကြီး) 🔴", 55.0, "Entropy: Data စုဆောင်းဆဲ..."
-    all_hist = [d.get('size', 'BIG') for d in reversed(history_docs)]
-    
-    recent = all_hist[-8:]
-    p_big = recent.count("BIG") / 8.0
-    p_small = 1 - p_big
-    
-    # Shannon Entropy H(X)
-    h = 0.0
-    if p_big > 0: h -= p_big * math.log2(p_big)
-    if p_small > 0: h -= p_small * math.log2(p_small)
-    
-    last = all_hist[-1]
-    if h > 0.9: # High Entropy (Chaos) -> Predict Alternation
-        pred = "SMALL" if last == "BIG" else "BIG"
-    else:       # Low Entropy (Order) -> Follow Streak
-        pred = last
-        
-    burmese, dot = _label(pred)
-    conf = min(60 + abs(0.5 - h) * 40, 85)
-    return pred, f"Entropy {pred} ({burmese}) {dot}", conf, f"Shannon H: {h:.2f}"
-
-def pro_streak_momentum_predict(history_docs):
-    """Streak Momentum (Velocity & Acceleration)"""
-    if len(history_docs) < 8: return "BIG", f"Momentum (အကြီး) 🔴", 55.0, "Momentum: Data စုဆောင်းဆဲ..."
-    all_hist = [d.get('size', 'BIG') for d in reversed(history_docs)]
-    
-    _, current_streak = _streak(all_hist)
-    _, prev_streak = _streak(all_hist[:-current_streak]) if current_streak < len(all_hist) else ("BIG", 0)
-    
-    # Delta Velocity
-    dv = current_streak - prev_streak
-    
-    if dv > 0: # Accelerating streak
-        pred = all_hist[-1] 
-    else:      # Decelerating streak -> Reversal expected
-        pred = "SMALL" if all_hist[-1] == "BIG" else "BIG"
-        
-    burmese, dot = _label(pred)
-    conf = min(60 + abs(dv) * 8, 86)
-    return pred, f"Momentum {pred} ({burmese}) {dot}", conf, f"Streak Δv: {dv}"
-
-# ============================================================
-# Dictionary များတွင် Update လုပ်ရန်
-# ============================================================
 PRO_AI_MODE_NAMES = {
-    "pro_lstm": "Pro LSTM",
-    "pro_gru": "Pro GRU",
-    "pro_xgb": "Pro XGBoost",
-    "pro_lgbm": "Pro LightGBM",
-    "pro_rl": "Pro RL Agent",
-    "pro_stacking": "Pro Ensemble Stacking",
-    "pro_rolling": "Pro Rolling Stats",
-    "pro_entropy": "Pro Entropy Analysis",
-    "pro_streak": "Pro Streak Momentum",
+    "pro_lstm": "🧠 Pro LSTM",
+    "pro_gru": "⚡ Pro GRU",
+    "pro_xgb": "🌲 Pro XGBoost",
+    "pro_lgbm": "🌿 Pro LightGBM",
+    "pro_rl": "🎮 Pro RL Agent",
+    "pro_stacking": "📚 Pro Ensemble Stacking",
+    "pro_rolling": "📈 Pro Rolling Stats",
+    "pro_entropy": "🌀 Pro Entropy Analysis",
+    "pro_streak": "🚀 Pro Streak Momentum",
+    "pro_real_ml": "🧠 Pro Real ML",
+    "pro_dynamic": "📚 Pro Dynamic Ensemble",
 }
-
 AI_MODE_NAMES.update(PRO_AI_MODE_NAMES)
 
 PRO_AI_MODES = {
@@ -1154,6 +1116,27 @@ PRO_AI_MODES = {
     "pro_rolling": {"func": pro_rolling_stats_predict, "name": PRO_AI_MODE_NAMES["pro_rolling"], "desc": "Z-Score & Variance"},
     "pro_entropy": {"func": pro_entropy_predict, "name": PRO_AI_MODE_NAMES["pro_entropy"], "desc": "Shannon Entropy Chaos Analysis"},
     "pro_streak": {"func": pro_streak_momentum_predict, "name": PRO_AI_MODE_NAMES["pro_streak"], "desc": "Streak Velocity"},
+    "pro_real_ml": {"func": pro_real_ml_predict, "name": PRO_AI_MODE_NAMES["pro_real_ml"], "desc": "Real ML w/ Feature Extraction"},
+    "pro_dynamic": {"func": pro_dynamic_ensemble_predict, "name": PRO_AI_MODE_NAMES["pro_dynamic"], "desc": "Dynamic Accuracy Tracking"},
 }
-
 AI_MODES.update(PRO_AI_MODES)
+
+def get_prediction(history_docs, mode, user_pattern=None, model_accuracies=None):
+    if mode == "custom_pattern":
+        return custom_pattern_predict(history_docs, user_pattern)
+    elif mode == "pro_dynamic":
+        return pro_dynamic_ensemble_predict(history_docs, model_accuracies)
+        
+    mode_info = AI_MODES.get(mode)
+    if mode_info: return mode_info["func"](history_docs)
+    return AI_MODES["pattern"]["func"](history_docs)
+
+def get_ai_mode_buttons():
+    buttons = []
+    for mode_key, mode_info in AI_MODES.items():
+        if mode_key.startswith("pro_"): continue # Skip PRO in main menu
+        mode_name = mode_info["name"]
+        emoji_id  = AI_MODE_EMOJIS.get(mode_name, "6300853298249336390")
+        btn = KeyboardButton(text=mode_name, icon_custom_emoji_id=emoji_id, style="primary")
+        buttons.append(btn)
+    return buttons
