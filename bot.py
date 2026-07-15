@@ -871,7 +871,7 @@ async def prediction_broadcast_loop(user_tg_id, message: types.Message):
                         pass
 
                 actual_result = "? | ?"
-                for _ in range(20):
+                for _ in range(45):
                     if not active_sessions.get(user_tg_id, {}).get("is_ai_prediction_enabled", False): break
                     await asyncio.sleep(2)
                     actual_result = await get_latest_game_result(current_issue, user_tg_id)
@@ -982,7 +982,7 @@ async def auto_bet_loop(user_tg_id, message: types.Message):
 </blockquote>""")
                         
                         actual_result = "? | ?"
-                        for _ in range(20):
+                        for _ in range(45):
                             if not active_sessions.get(user_tg_id, {}).get("is_auto_betting", False): break
                             await asyncio.sleep(2)
                             actual_result = await get_latest_game_result(current_issue, user_tg_id)
@@ -1056,7 +1056,7 @@ async def auto_bet_loop(user_tg_id, message: types.Message):
                     
                     if not is_virtual:
                         actual_result = "? | ?"
-                        for _ in range(20): 
+                        for _ in range(45): 
                             if not active_sessions.get(user_tg_id, {}).get("is_auto_betting", False): break 
                             await asyncio.sleep(2)
                             actual_result = await get_latest_game_result(current_issue, user_tg_id)
