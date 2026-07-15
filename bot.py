@@ -364,23 +364,65 @@ async def cmd_generate_key(message: types.Message):
     if message.from_user.id != OWNER_ID: return
     parts = message.text.split(" ")
     if len(parts) < 2:
-        return await message.answer("⚠️ Format မှားနေပါသည်။
-အသုံးပြုရန်: <code>.key 2H</code>, <code>.key 5D</code>")
+        return await message.answer(
+            "⚠️ Format မှားနေပါသည်။\n"
+            "အသုံးပြုရန်: <code>.key 2H</code>, <code>.key 5D</code>"
+        )
         
     duration = parts[1].strip().upper()
     if not parse_duration(duration):
-        return await message.answer("⚠️ အချိန်သတ်မှတ်ချက် မှားနေပါသည်။
-ဥပမာ: <code>2H</code>, <code>5D</code>")
+        return await message.answer(
+            "⚠️ အချိန်သတ်မှတ်ချက် မှားနေပါသည်။\n"
+            "ဥပမာ: <code>2H</code>, <code>5D</code>"
+        )
     
     date_prefix = get_myanmar_time().strftime("%Y%m%d")
     random_str = ''.join(random.choices(string.ascii_uppercase + string.digits, k=8))
     key_str = f"PSP-{date_prefix}{random_str}"
     
     await db.create_key(key_str, duration)
-    await message.answer(f"✅ <b>Key အသစ် ဖန်တီးပြီးပါပြီ။</b>
+    await message.answer(
+        f"✅ <b>Key အသစ် ဖန်တီးပြီးပါပြီ။</b>\n\n"
+        f"🔑 Key: <code>{key_str}</code>\n"
+        f"⏱️ Duration: <b>{duration}</b>"
+    )
 
-🔑 Key: <code>{key_str}</code>
-⏱️ Duration: <b>{duration}</b>")
+@dp.message(F.text.startswith(".gen "))
+async def cmd_gen_keys(message: types.Message):
+    if message.from_user.id != OWNER_ID: return
+    parts = message.text.split(" ")
+    if len(parts) < 3:
+        return await message.answer(
+            "⚠️ Format မှားနေပါသည်။\n"
+            "အသုံးပြုရန်: <code>.gen 5 2H</code>, <code>.gen 10 5D</code>"
+        )
+        
+    try:
+        count = int(parts[1])
+        duration = parts[2].strip().upper()
+        if not parse_duration(duration): raise ValueError
+    except:
+        return await message.answer(
+            "⚠️ အချိန်သတ်မှတ်ချက် သို့မဟုတ် အရေအတွက် မှားနေပါသည်။\n"
+            "ဥပမာ: <code>.gen 5 2H</code>"
+        )
+        
+    date_prefix = get_myanmar_time().strftime("%Y%m%d")
+    keys = []
+    
+    for _ in range(count):
+        random_str = ''.join(random.choices(string.ascii_uppercase + string.digits, k=8))
+        key_str = f"PSP-{date_prefix}{random_str}"
+        await db.create_key(key_str, duration)
+        keys.append(key_str)
+        
+    keys_text = "\n".join([f"<code>{k}</code>" for k in keys])
+    await message.answer(
+        f"✅ <b>Keys {count} ခု ဖန်တီးပြီးပါပြီ။</b>\n\n"
+        f"{keys_text}\n\n"
+        f"⏱️ Duration: <b>{duration}</b>"
+    )
+
 
 @dp.message(F.text.startswith(".gen "))
 async def cmd_gen_keys(message: types.Message):
