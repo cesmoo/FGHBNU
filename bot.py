@@ -860,9 +860,12 @@ async def prediction_broadcast_loop(user_tg_id, message: types.Message):
 
             if current_issue and current_issue != last_issue:
                 
-                # ---> 1 မိနစ်ပွဲဖြစ်ပါက အချိန် ၃၀ စက္ကန့်အလိုမှသာ Prediction ကို ထုတ်ပြပေးရန် ၂၅ စက္ကန့် စောင့်မည် <---
+
                 if game_name == "WINGO_1M":
-                    await asyncio.sleep(25)
+                    await asyncio.sleep(30)
+                elif game_name == "WINGO_30S":
+                    await asyncio.sleep(5)
+
                     
                 active_sessions[user_tg_id]["last_predicted_issue"] = current_issue
                 active_sessions[user_tg_id]["last_prediction_value"] = predicted_bet
@@ -890,11 +893,14 @@ async def prediction_broadcast_loop(user_tg_id, message: types.Message):
                         pass
 
                 actual_result = "? | ?"
-                for _ in range(45): # <--- Timeout မဖြစ်စေရန် 45 သို့ပြောင်းထားသည်
+                # 60 စက္ကန့်ပွဲအတွက် အချိန် ၆၀ စက္ကန့် (Loop ၆၀ ကြိမ် * 1s) ထိ စောင့်ပေးပါမယ်
+                wait_limit = 60 if game_name == "WINGO_1M" else 30
+                for _ in range(wait_limit):
                     if not active_sessions.get(user_tg_id, {}).get("is_ai_prediction_enabled", False): break
-                    await asyncio.sleep(2)
+                    await asyncio.sleep(1) # ၁ စက္ကန့်စီ စစ်ဆေးခြင်း
                     actual_result = await get_latest_game_result(current_issue, user_tg_id)
                     if actual_result != "? | ?": break
+
                 
                 if actual_result != "? | ?":
                     actual_size = actual_result.split(" | ")[1].strip().lower()
@@ -984,7 +990,7 @@ async def auto_bet_loop(user_tg_id, message: types.Message):
                     
                     # ---> 1 မိနစ်ပွဲဖြစ်ပါက အချိန် ၃၀ စက္ကန့်အလိုမှသာ Prediction ကို ထုတ်ပြပေးရန် ၂၅ စက္ကန့် စောင့်မည် <---
                     if game_name == "WINGO_1M":
-                        await asyncio.sleep(25)
+                        await asyncio.sleep(30)
                         
                     if predicted_bet == "wait":
                         msg = await message.answer(
@@ -1012,7 +1018,7 @@ async def auto_bet_loop(user_tg_id, message: types.Message):
                         )
                         
                         actual_result = "? | ?"
-                        for _ in range(45): # <--- Timeout မဖြစ်စေရန် 45 သို့ပြောင်းထားသည်
+                        for _ in range(60): # <--- Timeout မဖြစ်စေရန် 45 သို့ပြောင်းထားသည်
                             if not active_sessions.get(user_tg_id, {}).get("is_auto_betting", False): break
                             await asyncio.sleep(2)
                             actual_result = await get_latest_game_result(current_issue, user_tg_id)
