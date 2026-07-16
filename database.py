@@ -1,3 +1,4 @@
+# database.py  
 import os
 from motor.motor_asyncio import AsyncIOMotorClient
 from dotenv import load_dotenv
@@ -11,21 +12,20 @@ MONGO_URI = os.getenv("MONGO_URI", "")
 client = AsyncIOMotorClient(MONGO_URI)
 db = client["autobet_db"]
 users_collection = db["users"]
-keys_collection = db["keys"] # Key များသိမ်းရန် Collection အသစ်
+keys_collection = db["keys"] 
 allowed_uids_collection = db["allowed_uids"]
-
-# အသစ်ထည့်သွင်းထားသော AI States Collection (Persistent Memory အတွက်)
 ai_states_collection = db["ai_states"]
+
+# 📊 Game History Collection (Data 9000+ အတွက်)
+game_history_collection = db["game_history"]
 
 # ==========================================
 # 👤 User Data Functions
 # ==========================================
 async def get_user(user_id: int):
-    """User ၏ Data များကို ယူရန်"""
     return await users_collection.find_one({"_id": user_id})
 
 async def save_user_login(user_id: int, phone: str, site_user_id: str, nickname: str, balance: str, login_time: str, ai_mode: str):
-    """Login အောင်မြင်ပါက User Data များကို သိမ်းဆည်း/Update လုပ်ရန်"""
     await users_collection.update_one(
         {"_id": user_id},
         {"$set": {
@@ -40,31 +40,13 @@ async def save_user_login(user_id: int, phone: str, site_user_id: str, nickname:
     )
 
 async def update_user_ai_mode(user_id: int, ai_mode: str):
-    """User ရွေးချယ်ထားသော AI Mode ကို သိမ်းဆည်းရန်"""
     await users_collection.update_one(
         {"_id": user_id},
         {"$set": {"ai_mode": ai_mode}},
         upsert=True
     )
 
-# ==========================================
-# 🎮 Allowed Game UIDs (Key မလိုဘဲ သုံးခွင့်ပေးမည့်စာရင်း)
-# ==========================================
-async def add_allowed_uid(uid: str):
-    """UID ကို ခွင့်ပြုစာရင်းထဲ ထည့်ရန်"""
-    await allowed_uids_collection.update_one({"uid": uid}, {"$set": {"uid": uid}}, upsert=True)
-
-async def remove_allowed_uid(uid: str):
-    """UID ကို ခွင့်ပြုစာရင်းမှ ပယ်ဖျက်ရန်"""
-    await allowed_uids_collection.delete_one({"uid": uid})
-
-async def is_uid_allowed(uid: str) -> bool:
-    """UID သည် ခွင့်ပြုစာရင်းထဲတွင် ပါ/မပါ စစ်ဆေးရန်"""
-    doc = await allowed_uids_collection.find_one({"uid": uid})
-    return bool(doc)
-
 async def update_user_balance(user_id: int, balance: str):
-    """User ၏ Balance ကို Update လုပ်ရန်"""
     await users_collection.update_one(
         {"_id": user_id},
         {"$set": {"balance": balance}},
@@ -72,22 +54,31 @@ async def update_user_balance(user_id: int, balance: str):
     )
 
 # ==========================================
+# 🎮 Allowed Game UIDs
+# ==========================================
+async def add_allowed_uid(uid: str):
+    await allowed_uids_collection.update_one({"uid": uid}, {"$set": {"uid": uid}}, upsert=True)
+
+async def remove_allowed_uid(uid: str):
+    await allowed_uids_collection.delete_one({"uid": uid})
+
+async def is_uid_allowed(uid: str) -> bool:
+    doc = await allowed_uids_collection.find_one({"uid": uid})
+    return bool(doc)
+
+# ==========================================
 # 🔑 Auth & Subscription Functions
 # ==========================================
 async def create_key(key_str: str, duration: str):
-    """Owner ထုတ်လိုက်သော Key ကို DB တွင်သိမ်းရန်"""
     await keys_collection.insert_one({"key": key_str, "duration": duration})
 
 async def get_key(key_str: str):
-    """Key အချက်အလက်ကို ဆွဲယူရန်"""
     return await keys_collection.find_one({"key": key_str})
 
 async def delete_key(key_str: str):
-    """အသုံးပြုပြီးသော Key ကို ဖျက်ရန်"""
     await keys_collection.delete_one({"key": key_str})
 
 async def update_user_subscription(user_id: int, expire_iso: str):
-    """User ၏ အသုံးပြုခွင့် သက်တမ်းကို Update လုပ်ရန်"""
     await users_collection.update_one(
         {"_id": user_id},
         {"$set": {"expire_date": expire_iso}},
@@ -95,17 +86,15 @@ async def update_user_subscription(user_id: int, expire_iso: str):
     )
 
 async def get_user_subscription(user_id: int):
-    """User ၏ သက်တမ်းကုန်ဆုံးမည့် အချိန်ကို ယူရန်"""
     user = await get_user(user_id)
     if user and "expire_date" in user:
         return user["expire_date"]
     return None
 
 # ==========================================
-# 🧪 Virtual Mode Functions (NEW)
+# 🧪 Virtual Mode Functions
 # ==========================================
 async def set_virtual_balance(user_id: int, balance: float):
-    """Virtual Mode Balance ကို သိမ်းဆည်းရန်"""
     await users_collection.update_one(
         {"_id": user_id},
         {"$set": {"virtual_balance": balance}},
@@ -113,14 +102,12 @@ async def set_virtual_balance(user_id: int, balance: float):
     )
 
 async def get_virtual_balance(user_id: int) -> float:
-    """Virtual Mode Balance ကို ယူရန်"""
     user = await get_user(user_id)
     if user and "virtual_balance" in user:
         return user["virtual_balance"]
     return 0.0
 
 async def update_virtual_balance(user_id: int, balance: float):
-    """Virtual Mode Balance ကို Update လုပ်ရန်"""
     await users_collection.update_one(
         {"_id": user_id},
         {"$set": {"virtual_balance": balance}},
@@ -128,10 +115,9 @@ async def update_virtual_balance(user_id: int, balance: float):
     )
 
 # ==========================================
-# 🧠 AI State Functions (Persistent Memory)
+# 🧠 AI State Functions
 # ==========================================
 async def save_ai_state(user_id: int, model_name: str, state_data: dict):
-    """AI ၏ Q-Table သို့မဟုတ် အခြား မှတ်ဉာဏ်များကို DB တွင် သိမ်းရန်"""
     await ai_states_collection.update_one(
         {"user_id": user_id, "model_name": model_name},
         {"$set": {"state_data": state_data}},
@@ -139,8 +125,27 @@ async def save_ai_state(user_id: int, model_name: str, state_data: dict):
     )
 
 async def get_ai_state(user_id: int, model_name: str) -> dict:
-    """သိမ်းဆည်းထားသော AI မှတ်ဉာဏ်ကို ပြန်ခေါ်ရန်"""
     doc = await ai_states_collection.find_one({"user_id": user_id, "model_name": model_name})
     if doc and "state_data" in doc:
         return doc["state_data"]
     return {}
+
+# ==========================================
+# 📈 Historical Game Data Functions (NEW)
+# ==========================================
+async def save_game_record(site: str, game_type: int, issue: str, number: int, size: str):
+    """ထွက်ပေါ်ခဲ့သော ပွဲစဉ်ရလဒ်များကို Database တွင် မှတ်တမ်းတင်ရန်"""
+    await game_history_collection.update_one(
+        {"site": site, "game_type": game_type, "issue": str(issue)},
+        {"$set": {"number": number, "size": size}},
+        upsert=True
+    )
+
+async def get_game_history(site: str, game_type: int, limit: int = 9000):
+    """Database မှ နောက်ဆုံးထွက်ခဲ့သော Data များကို ဆွဲထုတ်ရန် (Default 9000)"""
+    cursor = game_history_collection.find(
+        {"site": site, "game_type": game_type}
+    ).sort("issue", -1).limit(limit)
+    
+    docs = await cursor.to_list(length=limit)
+    return docs
