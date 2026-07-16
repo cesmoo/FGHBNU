@@ -991,6 +991,67 @@ def ensemble_predict(history_docs):
         conf = min(58 + (small_w / total_w) * 30, 90)
         return "SMALL", f"{P_AI_ROBOT} SMALL (အသေး) 🟢", conf, f"{P_AI_ROBOT} Ensemble {small_n}AI→SMALL W:{small_w:.1f}:{big_w:.1f}"
 
+
+def pro_max_predict(history_docs):
+    if len(history_docs) < 15:
+        return "BIG", f"👑 Pro Max (အကြီး) 🔴", 55.0, "👑 Pro Max: Data စုဆောင်းဆဲ..."
+
+    # Pro AI Model များစာရင်း
+    pro_predictors = [
+        pro_lstm_predict,
+        pro_gru_predict,
+        pro_xgboost_predict,
+        pro_lightgbm_predict,
+        pro_rl_predict,
+        pro_ensemble_stacking_predict,
+        pro_rolling_stats_predict,
+        pro_entropy_predict,
+        pro_streak_momentum_predict,
+        pro_real_ml_predict,
+        babathapai_predict
+    ]
+
+    big_count = 0
+    small_count = 0
+    total_conf_big = 0.0
+    total_conf_small = 0.0
+
+    # Model တစ်ခုချင်းစီ၏ ခန့်မှန်းချက်များကို စစ်ဆေးခြင်း
+    for predictor in pro_predictors:
+        try:
+            pred, _, conf, _ = predictor(history_docs)
+            if pred == "BIG":
+                big_count += 1
+                total_conf_big += conf
+            elif pred == "SMALL":
+                small_count += 1
+                total_conf_small += conf
+        except Exception:
+            pass
+
+    # အများစု ခန့်မှန်းထားသော ရလဒ်ကို တွက်ချက်ခြင်း
+    if big_count > small_count:
+        final_pred = "BIG"
+        avg_conf = total_conf_big / big_count if big_count > 0 else 55.0
+    elif small_count > big_count:
+        final_pred = "SMALL"
+        avg_conf = total_conf_small / small_count if small_count > 0 else 55.0
+    else:
+        # မဲအရေအတွက် တူညီနေပါက Confidence အများဆုံးဘက်ကို ရွေးချယ်ခြင်း
+        final_pred = "BIG" if total_conf_big >= total_conf_small else "SMALL"
+        total_votes = big_count + small_count
+        avg_conf = (total_conf_big + total_conf_small) / total_votes if total_votes > 0 else 55.0
+
+    burmese, dot = _label(final_pred)
+    
+    # Vote အသာစီးရမှုပေါ်မူတည်၍ Confidence ကို မြှင့်တင်ပေးခြင်း (Maximum 98%)
+    confidence_boost = abs(big_count - small_count) * 2.5
+    final_conf = min(avg_conf + confidence_boost, 98.0)
+
+    # Output ပြန်ထုတ်ပေးခြင်း
+    return final_pred, f"👑 Pro Max {final_pred} ({burmese}) {dot}", final_conf, f"👑 Pro Max Vote: B({big_count}) S({small_count})"
+
+
 # ==========================================
 # 📊 AI Modes Dictionary Update
 # ==========================================
@@ -1051,6 +1112,7 @@ PRO_AI_MODE_NAMES = {
     "pro_real_ml": "🧠 Pro Real ML",
     "pro_dynamic": "📚 Pro Dynamic Ensemble",
     "babathapai": "🔮 ʙᴀʙᴀᴛʜᴀᴘᴧɪ",
+    "pro_max": "👑 AI Pro Max",
 }
 AI_MODE_NAMES.update(PRO_AI_MODE_NAMES)
 
@@ -1067,6 +1129,7 @@ PRO_AI_MODES = {
     "pro_real_ml": {"func": pro_real_ml_predict, "name": PRO_AI_MODE_NAMES["pro_real_ml"], "desc": "Real ML w/ Feature Extraction"},
     "pro_dynamic": {"func": pro_dynamic_ensemble_predict, "name": PRO_AI_MODE_NAMES["pro_dynamic"], "desc": "Dynamic Accuracy Tracking"},
     "babathapai": {"func": babathapai_predict, "name": PRO_AI_MODE_NAMES["babathapai"], "desc": "Deep Historical Memory Simulation"},
+    "pro_max": {"func": pro_max_predict, "name": PRO_AI_MODE_NAMES["pro_max"], "desc": "Ultimate Pro AI Aggregator"},
 }
 AI_MODES.update(PRO_AI_MODES)
 
