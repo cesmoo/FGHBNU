@@ -71,7 +71,6 @@ AI_MODE_EMOJIS = {
 # 🔧 Shared Utility Helpers
 # ==========================================================
 def _to_binary(history):
-    """BIG=1, SMALL=0 numeric list"""
     return [1 if x == "BIG" else 0 for x in history]
 
 def _label(pred):
@@ -91,7 +90,6 @@ def _entropy(seg):
     return e
 
 def _streak(history):
-    """Return (current_side, streak_length) from the end of history."""
     if not history: return None, 0
     side, count = history[-1], 1
     for r in reversed(history[:-1]):
@@ -100,7 +98,6 @@ def _streak(history):
     return side, count
 
 def _ema_ratio(history, span):
-    """Exponential-weighted BIG ratio over last `span` items."""
     seg = history[-span:]
     if not seg: return 0.5
     alpha = 2 / (len(seg) + 1)
@@ -114,18 +111,16 @@ def _ema_ratio(history, span):
 
 
 # ============================================================
-# 1. Pattern AI  —  v2: 25 patterns, recency-weighted, 30-item lookback
+# 1. Pattern AI
 # ============================================================
 def detect_active_pattern(history_list):
     if len(history_list) < 4: return None, None
 
     PATTERNS = [
-        # 2-item
         ("BB",   ["BIG","BIG"],                            "SMALL"),
         ("SS",   ["SMALL","SMALL"],                        "BIG"),
         ("BS",   ["BIG","SMALL"],                          "BIG"),
         ("SB",   ["SMALL","BIG"],                          "SMALL"),
-        # 3-item
         ("BBB",  ["BIG","BIG","BIG"],                      "BIG"),
         ("SSS",  ["SMALL","SMALL","SMALL"],                "SMALL"),
         ("BBS",  ["BIG","BIG","SMALL"],                    "BIG"),
@@ -134,7 +129,6 @@ def detect_active_pattern(history_list):
         ("SSB",  ["SMALL","SMALL","BIG"],                  "SMALL"),
         ("BSB",  ["BIG","SMALL","BIG"],                    "BIG"),
         ("SBS",  ["SMALL","BIG","SMALL"],                  "SMALL"),
-        # 4-item
         ("BBSS", ["BIG","BIG","SMALL","SMALL"],            "BIG"),
         ("SSBB", ["SMALL","SMALL","BIG","BIG"],            "SMALL"),
         ("BSBS", ["BIG","SMALL","BIG","SMALL"],            "BIG"),
@@ -143,7 +137,6 @@ def detect_active_pattern(history_list):
         ("SSSB", ["SMALL","SMALL","SMALL","BIG"],          "SMALL"),
         ("BSSS", ["BIG","SMALL","SMALL","SMALL"],          "BIG"),
         ("SBBB", ["SMALL","BIG","BIG","BIG"],              "SMALL"),
-        # 5-item
         ("BSSBS",["BIG","SMALL","SMALL","BIG","SMALL"],    "BIG"),
         ("SBBSB",["SMALL","BIG","BIG","SMALL","BIG"],      "SMALL"),
         ("BSBSB",["BIG","SMALL","BIG","SMALL","BIG"],      "SMALL"),
@@ -188,9 +181,6 @@ def pattern_predict(history_docs):
     return pred, f"{P_AI_PATTERN} {pred} ({burmese}) {dot}", 55.0, \
            f"{P_AI_INFO} Freq BIG:{b} SMALL:{s}"
 
-# ============================================================
-# 2. Martingale AI
-# ============================================================
 def martingale_predict(history_docs):
     if len(history_docs) < 5:
         return "BIG", f"{P_AI_MARTINGALE} BIG (အကြီး) 🔴", 60.0, f"{P_AI_HOURGLASS} Martingale: Data စုဆောင်းဆဲ..."
@@ -218,16 +208,11 @@ def martingale_predict(history_docs):
     if total == 0: total = 1
     if big_score > small_score:
         conf = min(55 + (big_score / total) * 30, 82)
-        return "BIG", f"{P_AI_MARTINGALE} BIG (အကြီး) 🔴", conf, \
-               f"{P_AI_MARTINGALE} Multi-Win Contrarian → BIG ({conf:.0f}%)"
+        return "BIG", f"{P_AI_MARTINGALE} BIG (အကြီး) 🔴", conf, f"{P_AI_MARTINGALE} Multi-Win Contrarian → BIG ({conf:.0f}%)"
     else:
         conf = min(55 + (small_score / total) * 30, 82)
-        return "SMALL", f"{P_AI_MARTINGALE} SMALL (အသေး) 🟢", conf, \
-               f"{P_AI_MARTINGALE} Multi-Win Contrarian → SMALL ({conf:.0f}%)"
+        return "SMALL", f"{P_AI_MARTINGALE} SMALL (အသေး) 🟢", conf, f"{P_AI_MARTINGALE} Multi-Win Contrarian → SMALL ({conf:.0f}%)"
 
-# ============================================================
-# 3. Anti-Martingale AI
-# ============================================================
 def anti_martingale_predict(history_docs):
     if len(history_docs) < 5:
         return "BIG", f"{P_AI_ANTIMARTINGALE} BIG (အကြီး) 🔴", 60.0, f"{P_AI_HOURGLASS} Anti-Martingale: Data စုဆောင်းဆဲ..."
@@ -238,19 +223,14 @@ def anti_martingale_predict(history_docs):
     if streak >= 2:
         conf = min(65 + 5 * (streak - 1), 84)
         burmese, dot = _label(side)
-        return side, f"{P_AI_ANTIMARTINGALE} {side} ({burmese}) {dot}", conf, \
-               f"{P_AI_ANTIMARTINGALE} Streak ×{streak} → Follow"
+        return side, f"{P_AI_ANTIMARTINGALE} {side} ({burmese}) {dot}", conf, f"{P_AI_ANTIMARTINGALE} Streak ×{streak} → Follow"
     else:
         recent = all_history[-6:]
         big_r  = recent.count("BIG") / len(recent)
         pred   = "BIG" if big_r >= 0.5 else "SMALL"
         burmese, dot = _label(pred)
-        return pred, f"{P_AI_ANTIMARTINGALE} {pred} ({burmese}) {dot}", 60.0, \
-               f"{P_AI_ANTIMARTINGALE} No streak → Short trend"
+        return pred, f"{P_AI_ANTIMARTINGALE} {pred} ({burmese}) {dot}", 60.0, f"{P_AI_ANTIMARTINGALE} No streak → Short trend"
 
-# ============================================================
-# 4. Trend Following
-# ============================================================
 def trend_following_predict(history_docs):
     if len(history_docs) < 8:
         return "BIG", f"{P_AI_TREND} BIG (အကြီး) 🔴", 58.0, f"{P_AI_HOURGLASS} Trend: Data စုဆောင်းဆဲ..."
@@ -268,20 +248,14 @@ def trend_following_predict(history_docs):
 
     if big_signals >= 2 or (big_signals == 1 and slope > 0.1):
         conf = min(62 + big_signals * 8 + abs(slope) * 40, 83)
-        return "BIG",   f"{P_AI_TREND} BIG (အကြီး) 🔴",   conf, \
-               f"{P_AI_TREND} EMA↑ {ema_vals[0]*100:.0f}%→{ema_vals[-1]*100:.0f}%"
+        return "BIG",   f"{P_AI_TREND} BIG (အကြီး) 🔴",   conf, f"{P_AI_TREND} EMA↑ {ema_vals[0]*100:.0f}%→{ema_vals[-1]*100:.0f}%"
     elif small_signals >= 2 or (small_signals == 1 and slope < -0.1):
         conf = min(62 + small_signals * 8 + abs(slope) * 40, 83)
-        return "SMALL", f"{P_AI_TREND} SMALL (အသေး) 🟢", conf, \
-               f"{P_AI_TREND} EMA↓ {ema_vals[0]*100:.0f}%→{ema_vals[-1]*100:.0f}%"
+        return "SMALL", f"{P_AI_TREND} SMALL (အသေး) 🟢", conf, f"{P_AI_TREND} EMA↓ {ema_vals[0]*100:.0f}%→{ema_vals[-1]*100:.0f}%"
     else:
         last = all_history[-1]; burmese, dot = _label(last)
-        return last, f"{P_AI_TREND} {last} ({burmese}) {dot}", 58.0, \
-               f"{P_AI_TREND} Sideways ({ema_vals[0]*100:.0f}%)"
+        return last, f"{P_AI_TREND} {last} ({burmese}) {dot}", 58.0, f"{P_AI_TREND} Sideways ({ema_vals[0]*100:.0f}%)"
 
-# ============================================================
-# 5. Fibonacci AI
-# ============================================================
 def fibonacci_predict(history_docs):
     if len(history_docs) < 10:
         return "BIG", f"{P_AI_FIBONACCI} BIG (အကြီး) 🔴", 55.0, f"{P_AI_HOURGLASS} Fibonacci: Data စုဆောင်းဆဲ..."
@@ -308,16 +282,11 @@ def fibonacci_predict(history_docs):
     if total == 0: total = 1
     if big_w >= small_w:
         conf = min(58 + (big_w / total) * 28, 84)
-        return "BIG",   f"{P_AI_FIBONACCI} BIG (အကြီး) 🔴",   conf, \
-               f"{P_AI_FIBONACCI} Fib8 → BIG ({conf:.0f}%)"
+        return "BIG",   f"{P_AI_FIBONACCI} BIG (အကြီး) 🔴",   conf, f"{P_AI_FIBONACCI} Fib8 → BIG ({conf:.0f}%)"
     else:
         conf = min(58 + (small_w / total) * 28, 84)
-        return "SMALL", f"{P_AI_FIBONACCI} SMALL (အသေး) 🟢", conf, \
-               f"{P_AI_FIBONACCI} Fib8 → SMALL ({conf:.0f}%)"
+        return "SMALL", f"{P_AI_FIBONACCI} SMALL (အသေး) 🟢", conf, f"{P_AI_FIBONACCI} Fib8 → SMALL ({conf:.0f}%)"
 
-# ============================================================
-# 6. Golden Ratio
-# ============================================================
 def golden_ratio_predict(history_docs):
     if len(history_docs) < 12:
         return "BIG", f"{P_AI_GOLDEN} BIG (အကြီး) 🔴", 55.0, f"{P_AI_HOURGLASS} Golden Ratio: Data စုဆောင်းဆဲ..."
@@ -337,21 +306,15 @@ def golden_ratio_predict(history_docs):
 
     if votes_big > votes_small or (votes_big == votes_small and slope > 0.05):
         conf = min(60 + votes_big * 8 + abs(slope) * 20, 84)
-        return "BIG",   f"{P_AI_GOLDEN} BIG (အကြီး) 🔴",   conf, \
-               f"{P_AI_GOLDEN} φ-Scale {votes_big}:Oversold {P_AI_UP}"
+        return "BIG",   f"{P_AI_GOLDEN} BIG (အကြီး) 🔴",   conf, f"{P_AI_GOLDEN} φ-Scale {votes_big}:Oversold {P_AI_UP}"
     elif votes_small > votes_big or (votes_big == votes_small and slope < -0.05):
         conf = min(60 + votes_small * 8 + abs(slope) * 20, 84)
-        return "SMALL", f"{P_AI_GOLDEN} SMALL (အသေး) 🟢", conf, \
-               f"{P_AI_GOLDEN} φ-Scale {votes_small}:Overbought {P_AI_DOWN}"
+        return "SMALL", f"{P_AI_GOLDEN} SMALL (အသေး) 🟢", conf, f"{P_AI_GOLDEN} φ-Scale {votes_small}:Overbought {P_AI_DOWN}"
     else:
         last = all_history[-1]; burmese, dot = _label(last)
         r21  = all_history[-21:].count("BIG") / 21
-        return last, f"{P_AI_GOLDEN} {last} ({burmese}) {dot}", 62.0, \
-               f"{P_AI_GOLDEN} φ-Zone {r21*100:.1f}% (Neutral)"
+        return last, f"{P_AI_GOLDEN} {last} ({burmese}) {dot}", 62.0, f"{P_AI_GOLDEN} φ-Zone {r21*100:.1f}% (Neutral)"
 
-# ============================================================
-# 7. Momentum AI
-# ============================================================
 def momentum_predict(history_docs):
     if len(history_docs) < 6:
         return "BIG", f"{P_AI_MOMENTUM} BIG (အကြီး) 🔴", 55.0, f"{P_AI_HOURGLASS} Momentum: Data စုဆောင်းဆဲ..."
@@ -380,20 +343,14 @@ def momentum_predict(history_docs):
 
     if total_signal > threshold:
         conf = min(58 + abs(total_signal) * 5, 85)
-        return "BIG",   f"{P_AI_MOMENTUM} BIG (အကြီး) 🔴",   conf, \
-               f"{P_AI_MOMENTUM} Momentum +{total_signal:.2f} {P_AI_UP}"
+        return "BIG",   f"{P_AI_MOMENTUM} BIG (အကြီး) 🔴",   conf, f"{P_AI_MOMENTUM} Momentum +{total_signal:.2f} {P_AI_UP}"
     elif total_signal < -threshold:
         conf = min(58 + abs(total_signal) * 5, 85)
-        return "SMALL", f"{P_AI_MOMENTUM} SMALL (အသေး) 🟢", conf, \
-               f"{P_AI_MOMENTUM} Momentum {total_signal:.2f} {P_AI_DOWN}"
+        return "SMALL", f"{P_AI_MOMENTUM} SMALL (အသေး) 🟢", conf, f"{P_AI_MOMENTUM} Momentum {total_signal:.2f} {P_AI_DOWN}"
     else:
         last = all_history[-1]; burmese, dot = _label(last)
-        return last, f"{P_AI_MOMENTUM} {last} ({burmese}) {dot}", 57.0, \
-               f"{P_AI_MOMENTUM} Weak signal ({total_signal:.2f})"
+        return last, f"{P_AI_MOMENTUM} {last} ({burmese}) {dot}", 57.0, f"{P_AI_MOMENTUM} Weak signal ({total_signal:.2f})"
 
-# ============================================================
-# 8. Monte Carlo
-# ============================================================
 def monte_carlo_predict(history_docs):
     if len(history_docs) < 15:
         return "BIG", f"{P_AI_MONTECARLO} BIG (အကြီး) 🔴", 55.0, f"{P_AI_HOURGLASS} Monte Carlo: Data စုဆောင်းဆဲ..."
@@ -412,16 +369,11 @@ def monte_carlo_predict(history_docs):
 
     if big_wins > 2500:
         prob = big_wins / 5000 * 100
-        return "BIG",   f"{P_AI_MONTECARLO} BIG (အကြီး) 🔴",   min(prob, 82), \
-               f"{P_AI_MONTECARLO} 5K-Sim BIG {prob:.1f}% (p={big_prob:.2f})"
+        return "BIG",   f"{P_AI_MONTECARLO} BIG (အကြီး) 🔴",   min(prob, 82), f"{P_AI_MONTECARLO} 5K-Sim BIG {prob:.1f}% (p={big_prob:.2f})"
     else:
         prob = (5000 - big_wins) / 5000 * 100
-        return "SMALL", f"{P_AI_MONTECARLO} SMALL (အသေး) 🟢", min(prob, 82), \
-               f"{P_AI_MONTECARLO} 5K-Sim SMALL {prob:.1f}% (p={1-big_prob:.2f})"
+        return "SMALL", f"{P_AI_MONTECARLO} SMALL (အသေး) 🟢", min(prob, 82), f"{P_AI_MONTECARLO} 5K-Sim SMALL {prob:.1f}% (p={1-big_prob:.2f})"
 
-# ============================================================
-# 9. Neural Pattern
-# ============================================================
 def neural_pattern_predict(history_docs):
     if len(history_docs) < 10:
         return "BIG", f"{P_AI_NEURAL} BIG (အကြီး) 🔴", 55.0, f"{P_AI_HOURGLASS} Neural: Data စုဆောင်းဆဲ..."
@@ -452,17 +404,12 @@ def neural_pattern_predict(history_docs):
     if total > 0:
         if big_score > small_score:
             conf = min(58 + (big_score / total) * 30, 86)
-            return "BIG",   f"{P_AI_NEURAL} BIG (အကြီး) 🔴",   conf, \
-                   f"{P_AI_NEURAL} kNN-3W BIG {big_score/total*100:.0f}%"
+            return "BIG",   f"{P_AI_NEURAL} BIG (အကြီး) 🔴",   conf, f"{P_AI_NEURAL} kNN-3W BIG {big_score/total*100:.0f}%"
         else:
             conf = min(58 + (small_score / total) * 30, 86)
-            return "SMALL", f"{P_AI_NEURAL} SMALL (အသေး) 🟢", conf, \
-                   f"{P_AI_NEURAL} kNN-3W SMALL {small_score/total*100:.0f}%"
+            return "SMALL", f"{P_AI_NEURAL} SMALL (အသေး) 🟢", conf, f"{P_AI_NEURAL} kNN-3W SMALL {small_score/total*100:.0f}%"
     return "BIG", f"{P_AI_NEURAL} BIG (အကြီး) 🔴", 55.0, f"{P_AI_NEURAL} No match found"
 
-# ============================================================
-# 10. Quick Reversal
-# ============================================================
 def quick_reversal_predict(history_docs):
     if len(history_docs) < 5:
         return "BIG", f"{P_AI_REVERSAL} BIG (အကြီး) 🔴", 55.0, f"{P_AI_HOURGLASS} Reversal: Data စုဆောင်းဆဲ..."
@@ -484,21 +431,15 @@ def quick_reversal_predict(history_docs):
         predicted = "SMALL" if side == "BIG" else "BIG"
         conf      = min(60 + avg_alt * 25, 84)
         burmese, dot = _label(predicted)
-        return predicted, f"{P_AI_REVERSAL} {predicted} ({burmese}) {dot}", conf, \
-               f"{P_AI_REVERSAL} Alt {avg_alt*100:.0f}% → Reverse"
+        return predicted, f"{P_AI_REVERSAL} {predicted} ({burmese}) {dot}", conf, f"{P_AI_REVERSAL} Alt {avg_alt*100:.0f}% → Reverse"
     elif streak >= 3 and avg_alt < 0.40:          
         conf = min(62 + streak * 4, 80)
         burmese, dot = _label(side)
-        return side, f"{P_AI_REVERSAL} {side} ({burmese}) {dot}", conf, \
-               f"{P_AI_REVERSAL} Streak ×{streak} (Low alt {avg_alt*100:.0f}%)"
+        return side, f"{P_AI_REVERSAL} {side} ({burmese}) {dot}", conf, f"{P_AI_REVERSAL} Streak ×{streak} (Low alt {avg_alt*100:.0f}%)"
     else:
         last = all_history[-1]; burmese, dot = _label(last)
-        return last, f"{P_AI_REVERSAL} {last} ({burmese}) {dot}", 58.0, \
-               f"{P_AI_REVERSAL} Neutral alt {avg_alt*100:.0f}%"
+        return last, f"{P_AI_REVERSAL} {last} ({burmese}) {dot}", 58.0, f"{P_AI_REVERSAL} Neutral alt {avg_alt*100:.0f}%"
 
-# ============================================================
-# 11. Wave Analysis
-# ============================================================
 def wave_analysis_predict(history_docs):
     if len(history_docs) < 8:
         return "BIG", f"{P_AI_WAVE} BIG (အကြီး) 🔴", 55.0, f"{P_AI_HOURGLASS} Wave: Data စုဆောင်းဆဲ..."
@@ -523,23 +464,18 @@ def wave_analysis_predict(history_docs):
         momentum_confirm = _ema_ratio(all_history, 5) > 0.5 if last_w[0] == "BIG" else _ema_ratio(all_history, 5) < 0.5
         conf = min(65 + last_w[1] * 3 + (5 if momentum_confirm else 0), 84)
         burmese, dot = _label(last_w[0])
-        return last_w[0], f"{P_AI_WAVE} {last_w[0]} ({burmese}) {dot}", conf, \
-               f"{P_AI_WAVE} Impulse W:{last_w[1]} → Continue"
+        return last_w[0], f"{P_AI_WAVE} {last_w[0]} ({burmese}) {dot}", conf, f"{P_AI_WAVE} Impulse W:{last_w[1]} → Continue"
 
     if last_w[1] <= 2 and prev_w[1] >= 3:
         predicted = "SMALL" if last_w[0] == "BIG" else "BIG"
         ratio = last_w[1] / prev_w[1]
         conf  = min(68 + (1 - ratio) * 20, 83)
         burmese, dot = _label(predicted)
-        return predicted, f"{P_AI_WAVE} {predicted} ({burmese}) {dot}", conf, \
-               f"{P_AI_WAVE} Correction ({ratio:.0%}) → {predicted}"
+        return predicted, f"{P_AI_WAVE} {predicted} ({burmese}) {dot}", conf, f"{P_AI_WAVE} Correction ({ratio:.0%}) → {predicted}"
 
     last = all_history[-1]; burmese, dot = _label(last)
     return last, f"{P_AI_WAVE} {last} ({burmese}) {dot}", 58.0, f"{P_AI_WAVE} W{len(waves)} tracking..."
 
-# ============================================================
-# 12. Chaos Theory
-# ============================================================
 def chaos_theory_predict(history_docs):
     if len(history_docs) < 10:
         return "BIG", f"{P_AI_CHAOS} BIG (အကြီး) 🔴", 55.0, f"{P_AI_HOURGLASS} Chaos: Data စုဆောင်းဆဲ..."
@@ -568,70 +504,22 @@ def chaos_theory_predict(history_docs):
     if e_now > 0.95 and avg_run < 1.5:          
         predicted = "SMALL" if side == "BIG" else "BIG"
         burmese, dot = _label(predicted)
-        return predicted, f"{P_AI_CHAOS} {predicted} ({burmese}) {dot}", 67.0, \
-               f"{P_AI_CHAOS} MaxEntropy+AltMode → {predicted}"
+        return predicted, f"{P_AI_CHAOS} {predicted} ({burmese}) {dot}", 67.0, f"{P_AI_CHAOS} MaxEntropy+AltMode → {predicted}"
 
     elif e_now < 0.6 and avg_run >= 2.5:         
         burmese, dot = _label(side)
-        return side, f"{P_AI_CHAOS} {side} ({burmese}) {dot}", 70.0, \
-               f"{P_AI_CHAOS} OrderedMode run={avg_run:.1f} → {side}"
+        return side, f"{P_AI_CHAOS} {side} ({burmese}) {dot}", 70.0, f"{P_AI_CHAOS} OrderedMode run={avg_run:.1f} → {side}"
 
     elif e_trend > 0.2:                           
         predicted = "SMALL" if side == "BIG" else "BIG"
         burmese, dot = _label(predicted)
-        return predicted, f"{P_AI_CHAOS} {predicted} ({burmese}) {dot}", 63.0, \
-               f"{P_AI_CHAOS} Entropy↑ {e_now:.2f} → {predicted}"
+        return predicted, f"{P_AI_CHAOS} {predicted} ({burmese}) {dot}", 63.0, f"{P_AI_CHAOS} Entropy↑ {e_now:.2f} → {predicted}"
 
     else:
         majority = "BIG" if all_history[-8:].count("BIG") > 4 else "SMALL"
         burmese, dot = _label(majority)
-        return majority, f"{P_AI_CHAOS} {majority} ({burmese}) {dot}", 58.0, \
-               f"{P_AI_CHAOS} Stable H={e_now:.2f}"
+        return majority, f"{P_AI_CHAOS} {majority} ({burmese}) {dot}", 58.0, f"{P_AI_CHAOS} Stable H={e_now:.2f}"
 
-# ============================================================
-# 13. Ensemble AI
-# ============================================================
-def ensemble_predict(history_docs):
-    if len(history_docs) < 10:
-        return "BIG", f"{P_AI_ROBOT} BIG (အကြီး) 🔴", 55.0, f"{P_AI_HOURGLASS} Ensemble: Data စုဆောင်းဆဲ..."
-
-    predictors = [
-        pattern_predict, martingale_predict, anti_martingale_predict,
-        trend_following_predict, fibonacci_predict, golden_ratio_predict,
-        momentum_predict, monte_carlo_predict, neural_pattern_predict,
-        quick_reversal_predict, wave_analysis_predict, chaos_theory_predict,
-        bayesian_predict, markov_chain_predict, ml_style_predict,
-        auto_swap_predict,
-    ]
-    big_w = small_w = 0.0
-    big_n = small_n = 0
-
-    for predictor in predictors:
-        try:
-            size, _, prob, _ = predictor(history_docs)
-            weight = max(prob - 50, 0) / 50    
-            if size == "BIG":
-                big_w   += weight; big_n   += 1
-            else:
-                small_w += weight; small_n += 1
-        except:
-            pass
-
-    total_w = big_w + small_w
-    if total_w == 0: total_w = 1
-
-    if big_w >= small_w:
-        conf = min(58 + (big_w / total_w) * 30, 90)
-        return "BIG",   f"{P_AI_ROBOT} BIG (အကြီး) 🔴",   conf, \
-               f"{P_AI_ROBOT} Ensemble {big_n}AI→BIG W:{big_w:.1f}:{small_w:.1f}"
-    else:
-        conf = min(58 + (small_w / total_w) * 30, 90)
-        return "SMALL", f"{P_AI_ROBOT} SMALL (အသေး) 🟢", conf, \
-               f"{P_AI_ROBOT} Ensemble {small_n}AI→SMALL W:{small_w:.1f}:{big_w:.1f}"
-
-# ============================================================
-# 14. Bayesian AI
-# ============================================================
 def bayesian_predict(history_docs):
     if len(history_docs) < 10:
         return "BIG", f"{P_AI_BRAIN} BIG (အကြီး) 🔴", 55.0, f"{P_AI_HOURGLASS} Bayesian: Data စုဆောင်းဆဲ..."
@@ -653,8 +541,7 @@ def bayesian_predict(history_docs):
         pred  = "BIG" if p_big >= 0.5 else "SMALL"
         conf  = min(55 + abs(p_big - 0.5) * 60 + 10, 84)
         burmese, dot = _label(pred)
-        return pred, f"{P_AI_BRAIN} {pred} ({burmese}) {dot}", conf, \
-               f"{P_AI_BRAIN} 2nd-Order P={p_big*100:.0f}% (n={total2})"
+        return pred, f"{P_AI_BRAIN} {pred} ({burmese}) {dot}", conf, f"{P_AI_BRAIN} 2nd-Order P={p_big*100:.0f}% (n={total2})"
 
     counts1 = defaultdict(lambda: {"BIG": 0, "SMALL": 0})
     for i in range(1, len(recent)):
@@ -669,16 +556,11 @@ def bayesian_predict(history_docs):
         pred  = "BIG" if p_big >= 0.5 else "SMALL"
         conf  = min(55 + abs(p_big - 0.5) * 50, 78)
         burmese, dot = _label(pred)
-        return pred, f"{P_AI_BRAIN} {pred} ({burmese}) {dot}", conf, \
-               f"{P_AI_BRAIN} 1st-Order P(·|{state1})={p_big*100:.0f}%"
+        return pred, f"{P_AI_BRAIN} {pred} ({burmese}) {dot}", conf, f"{P_AI_BRAIN} 1st-Order P(·|{state1})={p_big*100:.0f}%"
 
     last = all_history[-1]; burmese, dot = _label(last)
-    return last, f"{P_AI_BRAIN} {last} ({burmese}) {dot}", 55.0, \
-           f"{P_AI_BRAIN} Bayesian: Insufficient data"
+    return last, f"{P_AI_BRAIN} {last} ({burmese}) {dot}", 55.0, f"{P_AI_BRAIN} Bayesian: Insufficient data"
 
-# ============================================================
-# 15. Markov Chain
-# ============================================================
 def markov_chain_predict(history_docs):
     if len(history_docs) < 8:
         return "BIG", f"{P_AI_INFO} BIG (အကြီး) 🔴", 55.0, f"{P_AI_HOURGLASS} Markov: Data စုဆောင်းဆဲ..."
@@ -701,15 +583,11 @@ def markov_chain_predict(history_docs):
             pred  = "BIG" if p_big >= 0.5 else "SMALL"
             conf  = min(55 + abs(p_big - 0.5) * 55 + order * 3, 85)
             burmese, dot = _label(pred)
-            return pred, f"{P_AI_INFO} {pred} ({burmese}) {dot}", conf, \
-                   f"{P_AI_INFO} Markov-{order}rd {p_big*100:.0f}% (n={total})"
+            return pred, f"{P_AI_INFO} {pred} ({burmese}) {dot}", conf, f"{P_AI_INFO} Markov-{order}rd {p_big*100:.0f}% (n={total})"
 
     last = all_history[-1]; burmese, dot = _label(last)
     return last, f"{P_AI_INFO} {last} ({burmese}) {dot}", 56.0, f"{P_AI_INFO} Markov: sparse transitions"
 
-# ============================================================
-# 16. ML Style AI
-# ============================================================
 def ml_style_predict(history_docs):
     if len(history_docs) < 12:
         return "BIG", f"{P_AI_SPARKLES} BIG (အကြီး) 🔴", 55.0, f"{P_AI_HOURGLASS} ML Style: Data စုဆောင်းဆဲ..."
@@ -746,29 +624,19 @@ def ml_style_predict(history_docs):
     threshold = 0.04
     if score > threshold:
         conf = min(55 + abs(score) * 100 * damp, 82)
-        return "BIG",   f"{P_AI_SPARKLES} BIG (အကြီး) 🔴",   conf, \
-               f"{P_AI_SPARKLES} ML8F +{score:.3f}→BIG H={entropy_feat:.2f}"
+        return "BIG",   f"{P_AI_SPARKLES} BIG (အကြီး) 🔴",   conf, f"{P_AI_SPARKLES} ML8F +{score:.3f}→BIG H={entropy_feat:.2f}"
     elif score < -threshold:
         conf = min(55 + abs(score) * 100 * damp, 82)
-        return "SMALL", f"{P_AI_SPARKLES} SMALL (အသေး) 🟢", conf, \
-               f"{P_AI_SPARKLES} ML8F {score:.3f}→SMALL H={entropy_feat:.2f}"
+        return "SMALL", f"{P_AI_SPARKLES} SMALL (အသေး) 🟢", conf, f"{P_AI_SPARKLES} ML8F {score:.3f}→SMALL H={entropy_feat:.2f}"
     else:
         last = all_history[-1]; burmese, dot = _label(last)
-        return last, f"{P_AI_SPARKLES} {last} ({burmese}) {dot}", 55.0, \
-               f"{P_AI_SPARKLES} ML8F Neutral {score:.4f}"
+        return last, f"{P_AI_SPARKLES} {last} ({burmese}) {dot}", 55.0, f"{P_AI_SPARKLES} ML8F Neutral {score:.4f}"
 
-# ============================================================
-# 17. Circle Rnd
-# ============================================================
 def circle_rnd_predict(history_docs):
     predicted = random.choice(["BIG", "SMALL"])
     burmese, dot = _label(predicted)
-    return predicted, f"{P_AI_STAR} {predicted} ({burmese}) {dot}", \
-           round(random.uniform(50.0, 65.0), 1), "🎡 Circle Rnd: Spinner"
+    return predicted, f"{P_AI_STAR} {predicted} ({burmese}) {dot}", round(random.uniform(50.0, 65.0), 1), "🎡 Circle Rnd: Spinner"
 
-# ============================================================
-# 18. Custom Pattern
-# ============================================================
 def custom_pattern_predict(history_docs, user_pattern="B"):
     if not user_pattern: user_pattern = "B"
     pattern    = user_pattern.upper()
@@ -780,9 +648,6 @@ def custom_pattern_predict(history_docs, user_pattern="B"):
     full = "BIG" if c == "B" else "SMALL"
     return full, f"🛠️ {full} (Custom Pattern)", 100.0, "Custom Pattern"
 
-# ============================================================
-# 19. AI Auto Swap
-# ============================================================
 def auto_swap_predict(history_docs):
     if len(history_docs) < 4:
         return "BIG", f"🔄 BIG (အကြီး) 🔴", 55.0, "🔄 Auto Swap: Data စုဆောင်းဆဲ..."
@@ -954,11 +819,7 @@ def pro_streak_momentum_predict(history_docs):
     conf = min(60 + abs(dv) * 8, 86)
     return pred, f"🚀 Momentum {pred} ({burmese}) {dot}", conf, f"🚀 Streak Δv: {dv}"
 
-# ============================================================
-# NEW FEATURE & ML INTEGRATIONS (Point 1, 2, 4)
-# ============================================================
 def extract_advanced_features(history_docs):
-    """သမိုင်းကြောင်းမှ 'မ/စုံ' နှင့် 'အရောင်' များကို Feature အဖြစ် ပြောင်းလဲပေးခြင်း"""
     features = []
     for doc in history_docs:
         num = int(doc.get('number', 0))
@@ -971,39 +832,27 @@ def extract_advanced_features(history_docs):
     return features
 
 def pro_real_ml_predict(history_docs):
-    """တကယ့် ML Model အစစ် (Feature Engineering ပါဝင်သည်)"""
     if len(history_docs) < 10:
         return "BIG", f"🧠 Real ML (အကြီး) 🔴", 55.0, "🧠 Real ML: Data စုဆောင်းဆဲ..."
     
-    # Feature များကို ထုတ်ယူခြင်း (Model အစစ်ချိတ်ဆက်နိုင်ရန် ပြင်ဆင်ထားသည်)
     features = extract_advanced_features(list(reversed(history_docs))[-10:])
-    
-    # Placeholder for actual model prediction:
-    # prob_big = REAL_ML_MODEL.predict_proba(np.array(features).flatten().reshape(1, -1))[0][1]
-    
-    # Simulate Real ML Prediction for now
     prob_big = np.random.uniform(0.3, 0.7) 
     
     pred = "BIG" if prob_big > 0.5 else "SMALL"
     burmese, dot = _label(pred)
     conf = min(50 + abs(prob_big - 0.5) * 100, 95)
     
-    # Wait System Logic Check (Confidence < 55 means WAIT)
     if conf < 55.0:
         return "wait", f"⚠️ Real ML Wait", conf, f"⚠️ ML Confidence နည်းနေသဖြင့် ကျော်ပါမည် ({conf:.1f}%)"
 
     return pred, f"🧠 Real ML {pred} ({burmese}) {dot}", conf, f"🧠 ML Confidence: {conf:.1f}%"
 
 def pro_dynamic_ensemble_predict(history_docs, model_accuracies=None):
-    """
-    Win Rate ပေါ်မူတည်၍ Dynamic Weighting ပေးသော Ensemble စနစ် 
-    (Confidence မပြည့်မီပါက 'wait' လုပ်ပေးမည်)
-    """
     if len(history_docs) < 10:
         return "BIG", f"📚 Dynamic Stacking (အကြီး) 🔴", 55.0, "📚 Dynamic: Data စုဆောင်းဆဲ..."
 
     if not model_accuracies: 
-        model_accuracies = {} # Default if none provided
+        model_accuracies = {}
 
     big_score = 0.0
     small_score = 0.0
@@ -1019,7 +868,6 @@ def pro_dynamic_ensemble_predict(history_docs, model_accuracies=None):
     for name, predictor_func in predictors:
         try:
             size, _, conf, _ = predictor_func(history_docs)
-            # Fetch tracked accuracy (Default to 0.5 if not known)
             accuracy = model_accuracies.get(name, 0.5) 
             weight = (conf / 100.0) * accuracy 
             
@@ -1035,14 +883,113 @@ def pro_dynamic_ensemble_predict(history_docs, model_accuracies=None):
     
     pred = "BIG" if big_score > small_score else "SMALL"
     burmese, dot = _label(pred)
-    
     final_conf = min(50 + (max(big_score, small_score) / total) * 45, 95)
     
-    # WAIT SYSTEM (Risk Management)
     if final_conf < 58.0:
         return "wait", f"⚠️ {pred} (Confidence {final_conf:.1f}%)", final_conf, "⚠️ Dynamic Ensemble: မသေချာသဖြင့် ကျော်ပါမည် (Wait)"
         
     return pred, f"📚 Dynamic {pred} ({burmese}) {dot}", final_conf, f"📚 Dynamic Weight Score (B:{big_score:.1f} S:{small_score:.1f})"
+
+# ============================================================
+# 🔮 BABATHAPAI Deep Memory AI (9000+ Database Scan Simulation)
+# ============================================================
+def babathapai_predict(history_docs):
+    if len(history_docs) < 15:
+        return "BIG", f"🔮 BABATHAPAI (အကြီး) 🔴", 55.0, "🔮 ʙᴀʙᴀᴛʜᴀᴘᴧɪ: Data စုဆောင်းဆဲ..."
+
+    docs = list(reversed(history_docs)) # oldest to newest
+    all_history = [d.get('size', 'BIG') for d in docs]
+    
+    total_len = len(all_history)
+    
+    recent_10 = all_history[-10:]
+    older_100 = all_history[-100:] if total_len >= 100 else all_history
+    all_time = all_history
+    
+    recent_big_ratio = recent_10.count("BIG") / max(len(recent_10), 1)
+    older_big_ratio = older_100.count("BIG") / max(len(older_100), 1)
+    all_time_big_ratio = all_time.count("BIG") / max(total_len, 1)
+
+    deep_score = 0.0
+
+    # Mean Reversion on Deep History
+    if all_time_big_ratio > 0.52:
+        deep_score -= 2.0  
+    elif all_time_big_ratio < 0.48:
+        deep_score += 2.0  
+        
+    # Medium Term 
+    if older_big_ratio > 0.6:
+        deep_score -= 1.5
+    elif older_big_ratio < 0.4:
+        deep_score += 1.5
+
+    # Short Term Momentum
+    if recent_big_ratio > 0.7:
+        deep_score += 1.0
+    elif recent_big_ratio < 0.3:
+        deep_score -= 1.0
+
+    # Deep Pattern Match
+    if len(all_history) >= 4:
+        last_4 = all_history[-4:]
+        if last_4 == ["BIG", "SMALL", "BIG", "SMALL"]: 
+            deep_score += 2.0  
+        elif last_4 == ["SMALL", "BIG", "SMALL", "BIG"]: 
+            deep_score -= 2.0  
+        elif last_4 == ["BIG", "BIG", "SMALL", "SMALL"]: 
+            deep_score += 1.5  
+        elif last_4 == ["SMALL", "SMALL", "BIG", "BIG"]: 
+            deep_score -= 1.5  
+
+    base_prob = 50.0 + (deep_score * 8.0)
+    final_prob = max(10.0, min(base_prob, 95.0))
+
+    pred = "BIG" if final_prob >= 50 else "SMALL"
+    confidence = final_prob if pred == "BIG" else 100 - final_prob
+
+    burmese, dot = _label(pred)
+    
+    if confidence < 56.0:
+        return "wait", f"⚠️ ʙᴀʙᴀᴛʜᴀᴘᴧɪ Wait", confidence, f"⚠️ ʙᴀʙᴀᴛʜᴀᴘᴧɪ: {total_len} ပွဲစာတွက်ချက်မှုအရ ရလဒ်မသေချာပါ ({confidence:.1f}%)"
+
+    return pred, f"🔮 ʙᴀʙᴀᴛʜᴀᴘᴧɪ {pred} ({burmese}) {dot}", confidence, f"🔮 Deep Scan ({total_len} ပွဲ): {confidence:.1f}%"
+
+def ensemble_predict(history_docs):
+    if len(history_docs) < 10:
+        return "BIG", f"{P_AI_ROBOT} BIG (အကြီး) 🔴", 55.0, f"{P_AI_HOURGLASS} Ensemble: Data စုဆောင်းဆဲ..."
+
+    predictors = [
+        pattern_predict, martingale_predict, anti_martingale_predict,
+        trend_following_predict, fibonacci_predict, golden_ratio_predict,
+        momentum_predict, monte_carlo_predict, neural_pattern_predict,
+        quick_reversal_predict, wave_analysis_predict, chaos_theory_predict,
+        bayesian_predict, markov_chain_predict, ml_style_predict,
+        auto_swap_predict,
+    ]
+    big_w = small_w = 0.0
+    big_n = small_n = 0
+
+    for predictor in predictors:
+        try:
+            size, _, prob, _ = predictor(history_docs)
+            weight = max(prob - 50, 0) / 50    
+            if size == "BIG":
+                big_w   += weight; big_n   += 1
+            else:
+                small_w += weight; small_n += 1
+        except:
+            pass
+
+    total_w = big_w + small_w
+    if total_w == 0: total_w = 1
+
+    if big_w >= small_w:
+        conf = min(58 + (big_w / total_w) * 30, 90)
+        return "BIG",   f"{P_AI_ROBOT} BIG (အကြီး) 🔴",   conf, f"{P_AI_ROBOT} Ensemble {big_n}AI→BIG W:{big_w:.1f}:{small_w:.1f}"
+    else:
+        conf = min(58 + (small_w / total_w) * 30, 90)
+        return "SMALL", f"{P_AI_ROBOT} SMALL (အသေး) 🟢", conf, f"{P_AI_ROBOT} Ensemble {small_n}AI→SMALL W:{small_w:.1f}:{big_w:.1f}"
 
 # ==========================================
 # 📊 AI Modes Dictionary Update
@@ -1103,6 +1050,7 @@ PRO_AI_MODE_NAMES = {
     "pro_streak": "🚀 Pro Streak Momentum",
     "pro_real_ml": "🧠 Pro Real ML",
     "pro_dynamic": "📚 Pro Dynamic Ensemble",
+    "babathapai": "🔮 ʙᴀʙᴀᴛʜᴀᴘᴧɪ",
 }
 AI_MODE_NAMES.update(PRO_AI_MODE_NAMES)
 
@@ -1118,6 +1066,7 @@ PRO_AI_MODES = {
     "pro_streak": {"func": pro_streak_momentum_predict, "name": PRO_AI_MODE_NAMES["pro_streak"], "desc": "Streak Velocity"},
     "pro_real_ml": {"func": pro_real_ml_predict, "name": PRO_AI_MODE_NAMES["pro_real_ml"], "desc": "Real ML w/ Feature Extraction"},
     "pro_dynamic": {"func": pro_dynamic_ensemble_predict, "name": PRO_AI_MODE_NAMES["pro_dynamic"], "desc": "Dynamic Accuracy Tracking"},
+    "babathapai": {"func": babathapai_predict, "name": PRO_AI_MODE_NAMES["babathapai"], "desc": "Deep Historical Memory Simulation"},
 }
 AI_MODES.update(PRO_AI_MODES)
 
@@ -1134,7 +1083,7 @@ def get_prediction(history_docs, mode, user_pattern=None, model_accuracies=None)
 def get_ai_mode_buttons():
     buttons = []
     for mode_key, mode_info in AI_MODES.items():
-        if mode_key.startswith("pro_"): continue # Skip PRO in main menu
+        if mode_key.startswith("pro_") or mode_key == "babathapai": continue 
         mode_name = mode_info["name"]
         emoji_id  = AI_MODE_EMOJIS.get(mode_name, "6300853298249336390")
         btn = KeyboardButton(text=mode_name, icon_custom_emoji_id=emoji_id, style="primary")
