@@ -889,6 +889,12 @@ async def auto_bet_loop(user_tg_id, message: types.Message):
     is_virtual = session.get("is_virtual_mode", False)
     gn = session.get("game_type_name", "WINGO_30S")
     
+    # ပွဲရေမှတ်သားရန် (Counters)
+    session["total_wins"] = 0
+    session["total_losses"] = 0
+    session["current_win_streak"] = 0
+    session["current_lose_streak"] = 0
+    
     if not is_virtual:
         site_config = SITE_CONFIGS.get(session['site'])
         bal_url = f"{site_config['api_url']}/GetBalance"
@@ -1048,6 +1054,11 @@ async def auto_bet_loop(user_tg_id, message: types.Message):
                         active_sessions[user_tg_id]["current_bet_step"] = 0
                         active_sessions[user_tg_id]["current_misses"] = 0
                         
+                        # နိုင်ပွဲမှတ်သားခြင်း
+                        session["total_wins"] += 1
+                        session["current_win_streak"] += 1
+                        session["current_lose_streak"] = 0
+                        
                     elif actual == "?":
                         stat = "⚙️ DRAW (Pending)"
                     else:
@@ -1060,6 +1071,11 @@ async def auto_bet_loop(user_tg_id, message: types.Message):
                             
                         active_sessions[user_tg_id]["current_bet_step"] = (step + 1) % len(seq)
                         
+                        # ရှုံးပွဲမှတ်သားခြင်း
+                        session["total_losses"] += 1
+                        session["current_lose_streak"] += 1
+                        session["current_win_streak"] = 0
+                        
                     if ai_name == "Set Pattern" and actual != "?":
                         current_c_step = session.get("custom_pattern_step", 0)
                         pat_len = len(session.get("custom_pattern", ["BIG"]))
@@ -1070,9 +1086,10 @@ async def auto_bet_loop(user_tg_id, message: types.Message):
                     else:
                         c_prof = active_sessions[user_tg_id].get("session_profit", 0.0)
                     
+                    # Result Message တွင် Win/Lose အရေအတွက်များ ထည့်ပြခြင်း
                     result_txt = (
                         f"<blockquote>\n"
-                        f"{stat}\n"
+                        f"{stat} - 〔{session['total_wins']} | {session['total_losses']}〕\n"
                         f"───────────────\n"
                         f"{E_GRID} {gn} : <code>{issue}</code>\n"
                         f"{E_GRID} Result: <code>{res}</code>\n"
@@ -1100,6 +1117,7 @@ async def auto_bet_loop(user_tg_id, message: types.Message):
         except Exception as e:
             print(f"Loop Error: {e}")
             await asyncio.sleep(5)
+
 
 # ==========================================================
 # 🎯 Feature Handlers
